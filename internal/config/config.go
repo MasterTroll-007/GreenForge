@@ -271,6 +271,7 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			applyEnvOverrides(cfg)
 			return cfg, nil // use defaults
 		}
 		return nil, fmt.Errorf("reading config: %w", err)
@@ -280,6 +281,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
 
+	applyEnvOverrides(cfg)
 	return cfg, nil
 }
 
@@ -322,6 +324,46 @@ func greenforgeHome() string {
 		return filepath.Join("/home", os.Getenv("USER"), ".greenforge")
 	}
 	return filepath.Join(home, ".greenforge")
+}
+
+// applyEnvOverrides applies environment variable overrides to config.
+func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("GF_GATEWAY_HOST"); v != "" {
+		cfg.Gateway.Host = v
+	}
+	if v := os.Getenv("GF_GATEWAY_PORT"); v != "" {
+		var port int
+		if _, err := fmt.Sscanf(v, "%d", &port); err == nil {
+			cfg.Gateway.Port = port
+		}
+	}
+	if v := os.Getenv("GF_WEBUI_PORT"); v != "" {
+		var port int
+		if _, err := fmt.Sscanf(v, "%d", &port); err == nil {
+			cfg.Gateway.WebUIPort = port
+		}
+	}
+	if v := os.Getenv("GF_DEFAULT_MODEL"); v != "" {
+		cfg.AI.DefaultModel = v
+	}
+	if v := os.Getenv("OLLAMA_HOST"); v != "" {
+		// Update or add Ollama provider endpoint
+		found := false
+		for i := range cfg.AI.Providers {
+			if cfg.AI.Providers[i].Name == "ollama" {
+				cfg.AI.Providers[i].Endpoint = v
+				found = true
+				break
+			}
+		}
+		if !found && len(cfg.AI.Providers) == 0 {
+			cfg.AI.Providers = append(cfg.AI.Providers, ProviderConfig{
+				Name:     "ollama",
+				Endpoint: v,
+				Model:    "codestral",
+			})
+		}
+	}
 }
 
 // GreenForgeHome is exported for use by other packages.

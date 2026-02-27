@@ -1,4 +1,4 @@
-package providers
+package model
 
 import (
 	"bytes"
@@ -8,11 +8,9 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	"github.com/greencode/greenforge/internal/model"
 )
 
-// OpenAIProvider implements model.Provider for OpenAI GPT models.
+// OpenAIProvider implements Provider for OpenAI GPT models.
 type OpenAIProvider struct {
 	apiKey string
 	model  string
@@ -36,7 +34,49 @@ func (p *OpenAIProvider) Available() bool {
 	return p.apiKey != ""
 }
 
-func (p *OpenAIProvider) Complete(ctx context.Context, req model.Request) (*model.Response, error) {
+// Models queries OpenAI API for available models.
+func (p *OpenAIProvider) Models() []string {
+	if p.apiKey == "" {
+		return []string{p.model}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.openai.com/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return []string{p.model}
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return []string{p.model}
+	}
+
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return []string{p.model}
+	}
+
+	// Filter to chat models only
+	var names []string
+	for _, m := range result.Data {
+		names = append(names, m.ID)
+	}
+	if len(names) == 0 {
+		return []string{p.model}
+	}
+	return names
+}
+
+func (p *OpenAIProvider) Complete(ctx context.Context, req Request) (*Response, error) {
 	messages := make([]openaiMessage, 0, len(req.Messages))
 	for _, msg := range req.Messages {
 		om := openaiMessage{
@@ -116,10 +156,10 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req model.Request) (*mode
 	}
 
 	choice := apiResp.Choices[0]
-	resp := &model.Response{
+	resp := &Response{
 		Content: choice.Message.Content,
 		Model:   apiResp.Model,
-		Usage: model.Usage{
+		Usage: Usage{
 			InputTokens:  apiResp.Usage.PromptTokens,
 			OutputTokens: apiResp.Usage.CompletionTokens,
 		},
@@ -129,7 +169,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req model.Request) (*mode
 	for _, tc := range choice.Message.ToolCalls {
 		var input map[string]interface{}
 		json.Unmarshal([]byte(tc.Function.Arguments), &input)
-		resp.ToolCalls = append(resp.ToolCalls, model.ToolCall{
+		resp.ToolCalls = append(resp.ToolCalls, ToolCall{
 			ID:    tc.ID,
 			Name:  tc.Function.Name,
 			Input: input,
@@ -139,12 +179,12 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req model.Request) (*mode
 	return resp, nil
 }
 
-func (p *OpenAIProvider) StreamComplete(ctx context.Context, req model.Request, cb model.StreamCallback) error {
+func (p *OpenAIProvider) StreamComplete(ctx context.Context, req Request, cb StreamCallback) error {
 	resp, err := p.Complete(ctx, req)
 	if err != nil {
 		return err
 	}
-	cb(model.StreamChunk{
+	cb(StreamChunk{
 		Content:   resp.Content,
 		ToolCalls: resp.ToolCalls,
 		Done:      true,

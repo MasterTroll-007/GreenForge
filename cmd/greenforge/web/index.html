@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GreenForge</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff; --green: #3fb950;
+  --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; }
+
+/* Header */
+header { display:flex; align-items:center; padding:12px 20px; background:var(--bg2); border-bottom:1px solid var(--border); gap:16px; }
+header .logo { font-size:18px; font-weight:700; color:var(--green); }
+header .logo span { color:var(--text2); font-weight:400; font-size:13px; margin-left:8px; }
+header nav { display:flex; gap:4px; margin-left:24px; }
+header nav button { background:none; border:none; color:var(--text2); padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px; transition:all .15s; }
+header nav button:hover { background:var(--bg3); color:var(--text); }
+header nav button.active { background:var(--bg3); color:var(--accent); }
+.spacer { flex:1; }
+#model-select { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:6px 12px; border-radius:6px; font-size:13px; cursor:pointer; max-width:320px; }
+#model-select option { background:var(--bg2); }
+.status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block; }
+.status-dot.off { background:var(--red); }
+
+/* Main layout */
+main { flex:1; display:flex; overflow:hidden; }
+
+/* Sidebar */
+.sidebar { width:260px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+.sidebar h3 { padding:16px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--text2); }
+.session-list { flex:1; overflow-y:auto; padding:0 8px; }
+.session-item { padding:10px 12px; border-radius:8px; cursor:pointer; margin-bottom:4px; transition:background .15s; }
+.session-item:hover { background:var(--bg3); }
+.session-item.active { background:var(--bg3); border-left:2px solid var(--accent); }
+.session-item .name { font-size:14px; font-weight:500; }
+.session-item .meta { font-size:11px; color:var(--text2); margin-top:2px; }
+.session-item { position:relative; }
+.session-item .close-btn { position:absolute; top:8px; right:8px; background:none; border:none; color:var(--text2); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; display:none; }
+.session-item:hover .close-btn { display:block; }
+.session-item .close-btn:hover { color:var(--red); background:rgba(248,81,73,.15); }
+.sidebar .new-session { margin:12px; padding:10px; background:var(--bg3); border:1px dashed var(--border); border-radius:8px; text-align:center; cursor:pointer; color:var(--text2); font-size:13px; transition:all .15s; }
+.sidebar .new-session:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Chat panel */
+.chat-panel { flex:1; display:flex; flex-direction:column; }
+.messages { flex:1; overflow-y:auto; padding:20px; }
+.msg { margin-bottom:16px; max-width:85%; animation:fadeIn .2s; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+.msg.user { margin-left:auto; }
+.msg.user .bubble { background:var(--accent); color:#fff; border-radius:16px 16px 4px 16px; padding:10px 16px; }
+.msg.assistant .bubble { background:var(--bg2); border:1px solid var(--border); border-radius:16px 16px 16px 4px; padding:12px 16px; }
+.msg.assistant .bubble pre { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; margin:8px 0; overflow-x:auto; font-family:var(--mono); font-size:13px; }
+.msg.assistant .bubble code { font-family:var(--mono); font-size:13px; background:var(--bg); padding:2px 5px; border-radius:3px; }
+.msg .time { font-size:10px; color:var(--text2); margin-top:4px; text-align:right; }
+.msg.system .bubble { background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 14px; color:var(--text2); font-size:13px; font-style:italic; text-align:center; max-width:100%; }
+.msg.thinking .bubble { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:10px 16px; color:var(--text2); }
+.msg.thinking .bubble::after { content:''; display:inline-block; width:12px; animation:dots 1.2s infinite; }
+@keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+.typing-indicator { padding:8px 20px; color:var(--text2); font-size:12px; min-height:28px; }
+
+/* Input area */
+.input-area { padding:16px 20px; background:var(--bg2); border-top:1px solid var(--border); }
+.input-wrap { display:flex; gap:8px; max-width:900px; margin:0 auto; }
+.input-wrap textarea { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:12px 16px; border-radius:12px; font-family:var(--font); font-size:14px; resize:none; outline:none; min-height:48px; max-height:200px; transition:border-color .15s; }
+.input-wrap textarea:focus { border-color:var(--accent); }
+.input-wrap button { background:var(--accent); color:#fff; border:none; border-radius:12px; padding:0 20px; cursor:pointer; font-size:14px; font-weight:500; transition:opacity .15s; }
+.input-wrap button:hover { opacity:.85; }
+.input-wrap button:disabled { opacity:.4; cursor:default; }
+
+/* Dashboard view */
+.view { display:none; flex:1; overflow-y:auto; padding:24px; }
+.view.active { display:block; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:24px; }
+.card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.card h4 { font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--text2); margin-bottom:12px; }
+.card .value { font-size:28px; font-weight:700; }
+.card .sub { font-size:12px; color:var(--text2); margin-top:4px; }
+
+/* Audit view */
+.audit-table { width:100%; border-collapse:collapse; font-size:13px; }
+.audit-table th { text-align:left; padding:10px 12px; background:var(--bg2); border-bottom:1px solid var(--border); color:var(--text2); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+.audit-table td { padding:10px 12px; border-bottom:1px solid var(--border); }
+.audit-table tr:hover td { background:var(--bg2); }
+
+/* Settings view */
+#view-settings.active { display:flex !important; flex-direction:column; padding:0; }
+.settings-nav { position:sticky; top:0; z-index:10; background:var(--bg); border-bottom:1px solid var(--border); padding:12px 24px 0; display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; }
+.settings-nav::-webkit-scrollbar { display:none; }
+.settings-nav button { background:none; border:none; color:var(--text2); padding:8px 14px; border-radius:8px 8px 0 0; cursor:pointer; font-size:12px; font-weight:500; white-space:nowrap; transition:all .15s; border-bottom:2px solid transparent; }
+.settings-nav button:hover { color:var(--text); background:var(--bg2); }
+.settings-nav button.active { color:var(--accent); border-bottom-color:var(--accent); background:var(--bg2); }
+.settings-scroll { flex:1; overflow-y:auto; padding:20px 24px 40px; }
+.settings-content { max-width:1100px; margin:0 auto; }
+.settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.settings-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
+@media(max-width:1000px) { .settings-grid-3 { grid-template-columns:1fr 1fr; } }
+@media(max-width:900px) { .settings-grid { grid-template-columns:1fr; } .settings-grid-3 { grid-template-columns:1fr; } }
+.inline-fields { display:flex; gap:10px; flex:1; min-width:0; }
+.inline-fields .setting-input, .inline-fields .setting-select { flex:1; min-width:0; }
+.inline-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.inline-pair .setting-row { padding:3px 0; }
+.settings-group { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.settings-grid .settings-group { margin-bottom:0; }
+.settings-group h4 { margin-bottom:12px; font-size:14px; display:flex; align-items:center; gap:8px; }
+.settings-group h4 .sg-icon { width:20px; height:20px; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; }
+.settings-group .sub-heading { font-size:11px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin:10px 0 6px; padding-top:8px; border-top:1px solid var(--border); }
+.settings-group .sub-heading:first-of-type { border-top:none; padding-top:0; }
+.setting-row { display:flex; align-items:center; padding:4px 0; gap:8px; }
+.setting-row + .setting-row { border-top:1px solid rgba(48,54,61,.5); }
+.setting-row label { width:110px; flex-shrink:0; font-size:12px; color:var(--text2); }
+.setting-row .val { color:var(--accent); font-family:var(--mono); font-size:12px; }
+.setting-input { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-family:var(--mono); font-size:12px; flex:1; min-width:0; outline:none; transition:border-color .15s; }
+.setting-input:focus { border-color:var(--accent); }
+.setting-input.wide { width:100%; }
+.setting-select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:12px; cursor:pointer; outline:none; min-width:100px; }
+.setting-select option { background:var(--bg2); }
+.toggle { display:flex; align-items:center; gap:6px; }
+.toggle input[type="checkbox"] { accent-color:var(--green); width:15px; height:15px; cursor:pointer; }
+.toggle span { font-size:12px; color:var(--text2); }
+.secret-field { display:flex; align-items:center; gap:4px; flex:1; min-width:0; }
+.secret-field input { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-family:var(--mono); font-size:12px; flex:1; min-width:0; outline:none; }
+.secret-field input:focus { border-color:var(--accent); }
+.secret-field button { background:var(--bg3); border:1px solid var(--border); color:var(--text2); padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px; flex-shrink:0; }
+.secret-field button:hover { color:var(--text); border-color:var(--accent); }
+.btn-save { background:var(--green); color:#fff; border:none; border-radius:5px; padding:6px 16px; cursor:pointer; font-size:12px; font-weight:500; transition:opacity .15s; }
+.btn-save:hover { opacity:.85; }
+.btn-save:disabled { opacity:.4; cursor:default; }
+.save-row { display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:8px; border-top:1px solid var(--border); }
+.save-row .save-status { font-size:11px; color:var(--text2); }
+.array-item { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:5px; position:relative; }
+.array-item .setting-row { border:none; padding:3px 0; }
+.array-item .setting-row + .setting-row { border-top:none; }
+.add-item-btn { background:none; border:1px dashed var(--border); border-radius:6px; padding:7px; text-align:center; cursor:pointer; color:var(--text2); font-size:12px; width:100%; transition:all .15s; }
+.add-item-btn:hover { border-color:var(--accent); color:var(--accent); }
+.remove-item { position:absolute; top:6px; right:8px; background:none; border:none; color:var(--text2); cursor:pointer; font-size:14px; padding:1px 5px; border-radius:3px; line-height:1; }
+.remove-item:hover { color:var(--red); background:rgba(248,81,73,.15); }
+.setting-row label[title] { cursor:help; border-bottom:1px dotted rgba(139,148,158,.4); }
+.setting-row label[title]:hover { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* Streaming cursor */
+.cursor-blink { animation:blink 0.8s infinite; color:var(--accent); font-weight:300; }
+@keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+
+/* Modal dialog */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s; }
+.modal { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:24px; width:440px; max-width:90vw; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin-bottom:16px; font-size:16px; }
+.modal .subtitle { color:var(--text2); font-size:13px; margin-bottom:16px; }
+.project-list { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+.project-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--bg); border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all .15s; }
+.project-item:hover { border-color:var(--accent); }
+.project-item.selected { border-color:var(--accent); background:rgba(88,166,255,.08); }
+.project-item input[type="checkbox"] { accent-color:var(--accent); width:16px; height:16px; cursor:pointer; }
+.project-item .pname { font-weight:500; font-size:14px; }
+.project-item .ppath { font-size:11px; color:var(--text2); }
+.project-item .pgit { font-size:10px; color:var(--green); margin-left:auto; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+.modal-actions button { padding:8px 20px; border-radius:8px; font-size:13px; cursor:pointer; border:none; }
+.modal-actions .btn-primary { background:var(--accent); color:#fff; }
+.modal-actions .btn-primary:hover { opacity:.85; }
+.modal-actions .btn-primary:disabled { opacity:.4; cursor:default; }
+.modal-actions .btn-cancel { background:var(--bg3); color:var(--text); }
+.modal-actions .btn-cancel:hover { background:var(--border); }
+.select-all-row { display:flex; align-items:center; gap:8px; padding:6px 0; margin-bottom:8px; font-size:13px; color:var(--text2); cursor:pointer; }
+.select-all-row input { accent-color:var(--accent); width:14px; height:14px; }
+
+/* Folder browser */
+.folder-browser { display:flex; flex-direction:column; gap:0; }
+.folder-breadcrumb { display:flex; align-items:center; gap:2px; padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:8px 8px 0 0; font-family:var(--mono); font-size:12px; overflow-x:auto; white-space:nowrap; }
+.folder-breadcrumb .bc-seg { color:var(--accent); cursor:pointer; padding:2px 4px; border-radius:4px; }
+.folder-breadcrumb .bc-seg:hover { background:var(--bg3); }
+.folder-breadcrumb .bc-sep { color:var(--text2); }
+.folder-list { max-height:260px; overflow-y:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 8px 8px; background:var(--bg); }
+.folder-entry { display:flex; align-items:center; gap:10px; padding:8px 14px; cursor:pointer; transition:background .1s; border-bottom:1px solid var(--border); font-size:13px; }
+.folder-entry:last-child { border-bottom:none; }
+.folder-entry:hover { background:var(--bg3); }
+.folder-entry.selected { background:rgba(88,166,255,.12); }
+.folder-entry .fe-icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
+.folder-entry .fe-name { flex:1; }
+.folder-entry .fe-git { font-size:10px; color:var(--green); padding:2px 6px; background:rgba(63,185,80,.1); border-radius:4px; }
+
+/* Responsive */
+@media(max-width:768px) {
+  .sidebar { display:none; }
+  .msg { max-width:95%; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GreenForge <span id="version">v0.1.0</span></div>
+  <nav>
+    <button class="active" onclick="showView('chat')">Chat</button>
+    <button onclick="showView('dashboard')">Dashboard</button>
+    <button onclick="showView('audit')">Audit</button>
+    <button onclick="showView('settings')">Settings</button>
+  </nav>
+  <div class="spacer"></div>
+  <select id="model-select" onchange="switchModel(this.value)">
+    <option>Loading models...</option>
+  </select>
+  <span class="status-dot" id="status-dot" title="Connected"></span>
+</header>
+
+<main>
+  <!-- Sidebar: Sessions -->
+  <div class="sidebar">
+    <h3>Sessions</h3>
+    <div class="session-list" id="session-list"></div>
+    <div class="new-session" onclick="createSession()">+ New Session</div>
+  </div>
+
+  <!-- Chat view -->
+  <div class="chat-panel" id="view-chat">
+    <div class="messages" id="messages"></div>
+    <div class="typing-indicator" id="typing"></div>
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea id="input" placeholder="Ask anything about your codebase..." rows="1" onkeydown="handleKey(event)"></textarea>
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard view -->
+  <div class="view" id="view-dashboard">
+    <h2 style="margin-bottom:20px">Dashboard</h2>
+    <div class="cards">
+      <div class="card">
+        <h4>Status</h4>
+        <div class="value" style="color:var(--green)">Online</div>
+        <div class="sub">Gateway running</div>
+      </div>
+      <div class="card">
+        <h4>Active Sessions</h4>
+        <div class="value" id="dash-sessions">0</div>
+        <div class="sub">WebSocket connections</div>
+      </div>
+      <div class="card">
+        <h4>Model</h4>
+        <div class="value" id="dash-model" style="font-size:16px">-</div>
+        <div class="sub" id="dash-provider">-</div>
+      </div>
+      <div class="card">
+        <h4>Audit Events</h4>
+        <div class="value" id="dash-audit">0</div>
+        <div class="sub">Total logged actions</div>
+      </div>
+    </div>
+    <div class="card">
+      <h4>Recent Activity</h4>
+      <table class="audit-table" id="dash-activity">
+        <thead><tr><th>Time</th><th>Action</th><th>User</th><th>Details</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Audit view -->
+  <div class="view" id="view-audit">
+    <h2 style="margin-bottom:20px">Audit Log</h2>
+    <div class="card">
+      <table class="audit-table" id="audit-table">
+        <thead><tr><th>ID</th><th>Timestamp</th><th>Action</th><th>User</th><th>Tool</th><th>Hash</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Settings view -->
+  <div class="view" id="view-settings">
+    <div class="settings-nav" id="settings-nav">
+      <button class="active" onclick="scrollToSetting('sec-general',this)">General</button>
+      <button onclick="scrollToSetting('sec-workspace',this)">Workspace</button>
+      <button onclick="scrollToSetting('sec-ai',this)">AI</button>
+      <button onclick="scrollToSetting('sec-gateway',this)">Gateway</button>
+      <button onclick="scrollToSetting('sec-security',this)">Security</button>
+      <button onclick="scrollToSetting('sec-notify',this)">Notifications</button>
+      <button onclick="scrollToSetting('sec-autofix',this)">Auto-fix</button>
+      <button onclick="scrollToSetting('sec-cicd',this)">CI/CD</button>
+      <button onclick="scrollToSetting('sec-index',this)">Index</button>
+      <button onclick="scrollToSetting('sec-projects',this)">Projects</button>
+    </div>
+    <div class="settings-scroll" id="settings-scroll">
+      <div class="settings-content">
+
+      <!-- Row 1: General + Workspace side by side -->
+      <div class="settings-grid" id="sec-general">
+        <div class="settings-group" data-section="general">
+          <h4><span class="sg-icon" style="background:rgba(88,166,255,.15);color:var(--accent)">U</span> General</h4>
+          <div class="setting-row"><label title="Jmeno uzivatele zobrazovane v commitech a notifikacich">Name</label><input class="setting-input" id="s-gen-name" placeholder="Your name"></div>
+          <div class="setting-row"><label title="Emailova adresa pro Git commity a notifikace">Email</label><input class="setting-input" id="s-gen-email" type="email" placeholder="you@example.com"></div>
+          <div class="setting-row"><label title="Uroven logovani: debug (vse), info (standardni), warn (varovani), error (pouze chyby)">Log Level</label>
+            <select class="setting-select" id="s-gen-loglevel"><option value="debug">debug</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option></select>
+          </div>
+          <div class="setting-row"><label title="Jazyk rozhrani a odpovedi AI asistenta (cs=cestina, en=anglictina)">Language</label>
+            <select class="setting-select" id="s-gen-language"><option value="cs">cs</option><option value="en">en</option><option value="de">de</option><option value="sk">sk</option></select>
+          </div>
+          <div class="setting-row"><label title="Adresar pro ulozeni dat GreenForge (databaze, certifikaty, indexy)">Data Dir</label><input class="setting-input" id="s-gen-datadir" placeholder="/data"></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('general')">Save</button><span class="save-status" id="status-general"></span></div>
+        </div>
+        <div class="settings-group" id="sec-workspace">
+          <h4><span class="sg-icon" style="background:rgba(210,153,34,.15);color:var(--yellow)">W</span> Workspace</h4>
+          <div id="workspace-paths" style="padding:4px 0"></div>
+          <button onclick="showFolderBrowser('workspace')" style="margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7H1.75z"/></svg>
+            Browse...
+          </button>
+        </div>
+      </div>
+
+      <!-- AI Models -->
+      <div class="settings-group" data-section="ai" id="sec-ai">
+        <h4><span class="sg-icon" style="background:rgba(188,140,255,.15);color:var(--purple)">AI</span> AI Models &amp; Providers</h4>
+        <div style="color:var(--text2);font-size:11px;margin-bottom:8px">Click to switch active model</div>
+        <div id="model-list"></div>
+        <div class="settings-grid" style="margin-bottom:0;gap:14px;margin-top:10px">
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Providers</div>
+            <div id="ai-providers"></div>
+            <button class="add-item-btn" onclick="addAIProvider()" style="margin-top:6px">+ Add Provider</button>
+          </div>
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Model Policies</div>
+            <div id="ai-policies"></div>
+            <button class="add-item-btn" onclick="addAIPolicy()" style="margin-top:6px">+ Add Policy</button>
+          </div>
+        </div>
+        <div class="save-row"><button class="btn-save" onclick="saveSection('ai')">Save AI</button><span class="save-status" id="status-ai"></span></div>
+      </div>
+
+      <!-- Row 2: Gateway + CA side by side -->
+      <div class="settings-grid" id="sec-gateway">
+        <div class="settings-group" data-section="gateway">
+          <h4><span class="sg-icon" style="background:rgba(63,185,80,.15);color:var(--green)">G</span> Gateway</h4>
+          <div class="setting-row"><label title="IP adresa, na ktere Gateway nasloucha (0.0.0.0 = vsechny rozhrani)">Host</label><input class="setting-input" id="s-gw-host" placeholder="0.0.0.0"></div>
+          <div class="setting-row"><label title="Port pro WebSocket pripojeni agentu a SSH tunely">Port</label><input class="setting-input" id="s-gw-port" type="number" placeholder="9090"></div>
+          <div class="setting-row"><label title="Port pro webove rozhrani (tuto stranku)">WebUI Port</label><input class="setting-input" id="s-gw-webuiport" type="number" placeholder="9091"></div>
+          <div class="setting-row"><label title="Zapnout sifrovani TLS/HTTPS">TLS</label><div class="toggle"><input type="checkbox" id="s-gw-tls"><span>Enable</span></div></div>
+          <div class="setting-row"><label title="Cesta k TLS certifikatu ve formatu PEM">Cert File</label><input class="setting-input" id="s-gw-certfile" placeholder="cert.pem"></div>
+          <div class="setting-row"><label title="Cesta k privatnimu TLS klici ve formatu PEM">Key File</label><input class="setting-input" id="s-gw-keyfile" placeholder="key.pem"></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('gateway')">Save</button><span class="save-status" id="status-gateway"></span></div>
+        </div>
+        <div class="settings-group" data-section="ca">
+          <h4><span class="sg-icon" style="background:rgba(210,153,34,.15);color:var(--yellow)">CA</span> Certificate Authority</h4>
+          <div class="setting-row"><label title="Doba platnosti root CA certifikatu (napr. 8760h = 1 rok)">Cert Lifetime</label><input class="setting-input" id="s-ca-lifetime" placeholder="8760h"></div>
+          <div class="setting-row"><label title="Prah pro auto-obnovu. 0.20 = obnovi pri 20% zbyvajici platnosti">Renew Thresh.</label><input class="setting-input" id="s-ca-renewthresh" type="number" step="0.01" placeholder="0.20"></div>
+          <div class="setting-row"><label title="Kryptograficky algoritmus (ed25519 = rychly, ecdsa-p256 = kompatibilni)">Algorithm</label>
+            <select class="setting-select" id="s-ca-algo"><option value="ed25519">ed25519</option><option value="ecdsa-p256">ecdsa-p256</option><option value="rsa-2048">rsa-2048</option></select>
+          </div>
+          <div class="setting-row"><label title="Doba platnosti certifikatu pro zarizeni (napr. 720h = 30 dni)">Device Cert</label><input class="setting-input" id="s-ca-devlifetime" placeholder="720h"></div>
+          <div class="setting-row"><label title="Max zarizeni na uzivatele">Max Devices</label><input class="setting-input" id="s-ca-maxdevices" type="number" placeholder="5"></div>
+          <div class="setting-row"><label title="strict = jen povolene nastroje, permissive = vse">Perm. Mode</label>
+            <select class="setting-select" id="s-ca-permmode"><option value="strict">strict</option><option value="permissive">permissive</option></select>
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:3px"><label title="Nastroje povolene pro zarizeni (carkou oddelene). Pouziva se v strict rezimu" style="width:auto">Allowed Tools</label><textarea class="setting-input" id="s-ca-devtools" rows="2" placeholder="tool1, tool2" style="flex:unset"></textarea></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('ca')">Save</button><span class="save-status" id="status-ca"></span></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Sandbox + Audit + Pipeline Watcher -->
+      <div class="settings-grid-3" id="sec-security">
+        <div class="settings-group" data-section="sandbox" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(88,166,255,.15);color:var(--accent)">S</span> Sandbox</h4>
+          <div class="setting-row"><label title="Izolace spousteni kodu v Docker kontejneru">Enabled</label><div class="toggle"><input type="checkbox" id="s-sb-enabled"><span>Enable</span></div></div>
+          <div class="setting-row"><label title="Cesta k Docker socket">Docker Socket</label><input class="setting-input" id="s-sb-socket" placeholder="/var/run/docker.sock"></div>
+          <div class="setting-row"><label title="none = bez site, bridge = izolovaná, host = sdilena">Network</label>
+            <select class="setting-select" id="s-sb-netmode"><option value="none">none</option><option value="bridge">bridge</option><option value="host">host</option></select>
+          </div>
+          <div class="setting-row"><label title="Max CPU jader / Max pamet">CPU / Mem</label><div class="inline-fields"><input class="setting-input" id="s-sb-cpu" placeholder="1" style="max-width:70px"><input class="setting-input" id="s-sb-memory" placeholder="512m" style="max-width:80px"></div></div>
+          <div class="setting-row"><label title="Max doba behu (napr. 5m, 10m)">Timeout</label><input class="setting-input" id="s-sb-timeout" placeholder="5m"></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('sandbox')">Save</button><span class="save-status" id="status-sandbox"></span></div>
+        </div>
+        <div class="settings-group" data-section="audit" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(248,81,73,.15);color:var(--red)">A</span> Audit</h4>
+          <div class="setting-row"><label title="Logovat vsechny akce do audit DB">Enabled</label><div class="toggle"><input type="checkbox" id="s-aud-enabled"><span>Enable</span></div></div>
+          <div class="setting-row"><label title="Cesta k SQLite audit databazi">DB Path</label><input class="setting-input" id="s-aud-dbpath" placeholder="audit.db"></div>
+          <div class="setting-row"><label title="Po kolika dnech se stare zaznamy smazou">Retain Days</label><input class="setting-input" id="s-aud-retaindays" type="number" placeholder="90"></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('audit')">Save</button><span class="save-status" id="status-audit"></span></div>
+        </div>
+        <div class="settings-group" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(248,81,73,.15);color:var(--red)">PW</span> Pipeline Watcher</h4>
+          <div class="setting-row"><label>Status</label><span class="val" id="s-watcher-status">-</span></div>
+          <div id="watcher-failures" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="settings-group" data-section="notify" id="sec-notify">
+        <h4><span class="sg-icon" style="background:rgba(63,185,80,.15);color:var(--green)">N</span> Notifications</h4>
+        <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Channels</div>
+        <div id="notify-channels"></div>
+        <button class="add-item-btn" onclick="addNotifyChannel()" style="margin-top:6px">+ Add Channel</button>
+        <div class="settings-grid-3" style="margin-top:12px">
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Events</div>
+            <div class="setting-row"><label title="Notifikace pri selhani CI/CD pipeline">Pipeline Failures</label><div class="toggle"><input type="checkbox" id="s-nev-pipeline"></div></div>
+            <div class="setting-row"><label title="Notifikace pri prirazeni PR">PR Assigned</label><div class="toggle"><input type="checkbox" id="s-nev-pr"></div></div>
+            <div class="setting-row"><label title="Notifikace o kazdem commitu">All Commits</label><div class="toggle"><input type="checkbox" id="s-nev-commits"></div></div>
+            <div class="setting-row"><label title="Notifikace kdyz AI opravil selhani">Auto-fix Done</label><div class="toggle"><input type="checkbox" id="s-nev-autofix"></div></div>
+          </div>
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Morning Digest</div>
+            <div class="setting-row"><label title="automatic = v dany cas, on_demand = rucne, both = oba">Mode</label>
+              <select class="setting-select" id="s-nd-mode"><option value="automatic">automatic</option><option value="on_demand">on_demand</option><option value="both">both</option></select>
+            </div>
+            <div class="setting-row"><label title="Cas odeslani ranniho souhrnu (HH:MM)">Time</label><input class="setting-input" id="s-nd-time" type="time" value="07:00"></div>
+            <div style="margin-top:8px">
+              <button onclick="triggerDigest()" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:12px">Run Digest Now</button>
+              <span id="digest-status" style="margin-left:8px;font-size:11px;color:var(--text2)"></span>
+            </div>
+          </div>
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Quiet Hours</div>
+            <div class="setting-row"><label title="Behem tichych hodin se neposilaji notifikace">Enabled</label><div class="toggle"><input type="checkbox" id="s-qh-enabled"></div></div>
+            <div class="setting-row"><label title="Zacatek tichych hodin (HH:MM)">Start</label><input class="setting-input" id="s-qh-start" type="time" value="22:00"></div>
+            <div class="setting-row"><label title="Konec tichych hodin (HH:MM)">End</label><input class="setting-input" id="s-qh-end" type="time" value="07:00"></div>
+          </div>
+        </div>
+        <div class="save-row"><button class="btn-save" onclick="saveSection('notify')">Save Notifications</button><span class="save-status" id="status-notify"></span></div>
+      </div>
+
+      <!-- Auto-fix -->
+      <div class="settings-group" data-section="autofix" id="sec-autofix">
+        <h4><span class="sg-icon" style="background:rgba(210,153,34,.15);color:var(--yellow)">AF</span> Auto-fix Policy</h4>
+        <div class="settings-grid" style="margin-bottom:0;gap:14px">
+          <div>
+            <div class="setting-row"><label title="notify_only = jen notifikace, fix_and_pr = AI opravi + PR, fix_and_merge = automaticky mergnuje">Default Policy</label>
+              <select class="setting-select" id="s-af-default"><option value="notify_only">notify_only</option><option value="fix_and_pr">fix_and_pr</option><option value="fix_and_merge">fix_and_merge</option></select>
+            </div>
+            <div class="setting-row"><label title="Max auto-fix pokusu na branch/den">Max Fixes</label><input class="setting-input" id="s-af-max" type="number" placeholder="3"></div>
+            <div class="setting-row"><label title="Cas pro eskalaci neuspesne opravy (napr. 30m, 1h)">Escalate After</label><input class="setting-input" id="s-af-escalate" placeholder="30m"></div>
+          </div>
+          <div>
+            <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Repo Policies</div>
+            <div id="autofix-rules"></div>
+            <button class="add-item-btn" onclick="addRepoPolicy()" style="margin-top:6px">+ Add Repo Policy</button>
+          </div>
+        </div>
+        <div class="save-row"><button class="btn-save" onclick="saveSection('autofix')">Save Auto-fix</button><span class="save-status" id="status-autofix"></span></div>
+      </div>
+
+      <!-- Row 4: CI/CD + Index + Projects -->
+      <div class="settings-grid-3" id="sec-cicd">
+        <div class="settings-group" data-section="cicd" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(188,140,255,.15);color:var(--purple)">CI</span> CI/CD Integrations</h4>
+          <div class="sub-heading" style="border-top:none;padding-top:0;margin-top:0">Azure DevOps</div>
+          <div class="setting-row"><label title="Nazev organizace (dev.azure.com/org)">Org</label><input class="setting-input" id="s-cicd-adoorg" placeholder="my-org"></div>
+          <div class="setting-row"><label title="Personal Access Token">PAT</label><div class="secret-field"><input type="password" id="s-cicd-adopat" placeholder="Not set"><button onclick="toggleSecret('s-cicd-adopat')">show</button></div></div>
+          <div class="sub-heading">GitLab</div>
+          <div class="setting-row"><label title="URL GitLab instance">URL</label><input class="setting-input" id="s-cicd-glurl" placeholder="https://gitlab.com"></div>
+          <div class="setting-row"><label title="GitLab Access Token">Token</label><div class="secret-field"><input type="password" id="s-cicd-gltoken" placeholder="Not set"><button onclick="toggleSecret('s-cicd-gltoken')">show</button></div></div>
+          <div class="sub-heading">GitHub</div>
+          <div class="setting-row"><label title="GitHub Personal Access Token">Token</label><div class="secret-field"><input type="password" id="s-cicd-ghtoken" placeholder="Not set"><button onclick="toggleSecret('s-cicd-ghtoken')">show</button></div></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('cicd')">Save</button><span class="save-status" id="status-cicd"></span></div>
+        </div>
+        <div class="settings-group" data-section="index" id="sec-index" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(88,166,255,.15);color:var(--accent)">IX</span> Codebase Index</h4>
+          <div class="setting-row"><label title="Indexovat zdrojove kody pro AI kontext">Enabled</label><div class="toggle"><input type="checkbox" id="s-idx-enabled"></div></div>
+          <div class="setting-row"><label title="Sledovat zmeny na pozadi">Bg Watch</label><div class="toggle"><input type="checkbox" id="s-idx-bg"></div></div>
+          <div class="setting-row"><label title="AI model pro embeddings">Embedding</label><input class="setting-input" id="s-idx-embedding" placeholder="text-embedding-3-small"></div>
+          <div class="sub-heading">Stats</div>
+          <div class="setting-row"><label title="Pocet indexovanych souboru">Files</label><span class="val" id="s-index-files">-</span></div>
+          <div class="setting-row"><label title="Pocet nalezenych trid">Classes</label><span class="val" id="s-index-classes">-</span></div>
+          <div style="margin-top:8px">
+            <button onclick="triggerReindex()" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:12px">Reindex All</button>
+            <span id="reindex-status" style="margin-left:8px;font-size:11px;color:var(--text2)"></span>
+          </div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('index')">Save</button><span class="save-status" id="status-index"></span></div>
+        </div>
+        <div class="settings-group" data-section="projects" id="sec-projects" style="margin-bottom:0">
+          <h4><span class="sg-icon" style="background:rgba(63,185,80,.15);color:var(--green)">P</span> Projects</h4>
+          <div id="projects-list"></div>
+          <button class="add-item-btn" onclick="addProject()" style="margin-top:6px">+ Add Project</button>
+          <div class="save-row"><button class="btn-save" onclick="saveSection('projects')">Save Projects</button><span class="save-status" id="status-projects"></span></div>
+        </div>
+      </div>
+
+
+      </div><!-- /settings-content -->
+    </div><!-- /settings-scroll -->
+  </div>
+</main>
+
+<script>
+const API = window.location.origin;
+let ws = null;
+let currentSession = null;
+let currentModel = '';
+let streamingMsg = null; // Currently streaming message element
+let streamingText = ''; // Accumulated streaming text
+
+// --- Views ---
+function showView(name) {
+  document.querySelectorAll('header nav button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  document.getElementById('view-chat').style.display = name === 'chat' ? 'flex' : 'none';
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const view = document.getElementById('view-' + name);
+  if (view) view.classList.add('active');
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'audit') loadAudit();
+  if (name === 'settings') loadSettings();
+}
+
+// --- WebSocket ---
+function connectWS(sessionId) {
+  if (ws) ws.close();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = proto + '//' + location.host + '/ws' + (sessionId ? '?session=' + sessionId : '');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    document.getElementById('status-dot').classList.remove('off');
+    document.getElementById('status-dot').title = 'Connected';
+    loadSessions();
+  };
+  ws.onclose = () => {
+    document.getElementById('status-dot').classList.add('off');
+    document.getElementById('status-dot').title = 'Disconnected';
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleWSMessage(msg);
+  };
+}
+
+function handleWSMessage(msg) {
+  const typing = document.getElementById('typing');
+  switch (msg.type) {
+    case 'thinking':
+      typing.textContent = 'Thinking...';
+      // Prepare a streaming bubble
+      streamingText = '';
+      streamingMsg = document.createElement('div');
+      streamingMsg.className = 'msg assistant';
+      const time = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'});
+      streamingMsg.innerHTML = '<div class="bubble"><span class="stream-content"></span><span class="cursor-blink">|</span></div><div class="time">' + time + '</div>';
+      document.getElementById('messages').appendChild(streamingMsg);
+      scrollToBottom();
+      break;
+    case 'stream':
+      typing.textContent = '';
+      streamingText += msg.data;
+      if (streamingMsg) {
+        const el = streamingMsg.querySelector('.stream-content');
+        if (el) el.innerHTML = renderMarkdown(streamingText);
+        scrollToBottom();
+      }
+      break;
+    case 'stream_end':
+      typing.textContent = '';
+      if (streamingMsg) {
+        const cursor = streamingMsg.querySelector('.cursor-blink');
+        if (cursor) cursor.remove();
+        const el = streamingMsg.querySelector('.stream-content');
+        if (el) el.innerHTML = renderMarkdown(msg.data || streamingText);
+        streamingMsg = null;
+        streamingText = '';
+      }
+      break;
+    case 'response':
+      typing.textContent = '';
+      // If we were streaming, finalize it
+      if (streamingMsg) {
+        const cursor = streamingMsg.querySelector('.cursor-blink');
+        if (cursor) cursor.remove();
+        const el = streamingMsg.querySelector('.stream-content');
+        if (el) el.innerHTML = renderMarkdown(msg.data);
+        streamingMsg = null;
+        streamingText = '';
+      } else {
+        addMessage('assistant', msg.data);
+      }
+      scrollToBottom();
+      loadSessions(); // Refresh session list
+      break;
+    case 'tool_call':
+      typing.textContent = 'Using tool: ' + (msg.data?.name || '');
+      break;
+    case 'error':
+      typing.textContent = '';
+      if (streamingMsg) {
+        const cursor = streamingMsg.querySelector('.cursor-blink');
+        if (cursor) cursor.remove();
+        streamingMsg = null;
+        streamingText = '';
+      }
+      addMessage('system', msg.data);
+      break;
+    case 'session':
+      currentSession = msg.data;
+      break;
+  }
+}
+
+function renderMarkdown(text) {
+  return text
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^### (.+)$/gm, '<strong style="font-size:14px;display:block;margin:12px 0 4px">$1</strong>')
+    .replace(/^## (.+)$/gm, '<strong style="font-size:16px;display:block;margin:14px 0 6px">$1</strong>')
+    .replace(/^# (.+)$/gm, '<strong style="font-size:18px;display:block;margin:16px 0 8px">$1</strong>')
+    .replace(/^- (.+)$/gm, '<span style="display:block;padding-left:16px">&#8226; $1</span>')
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">')
+    .replace(/\n/g, '<br>');
+}
+
+function scrollToBottom() {
+  const el = document.querySelector('.messages');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+// --- Chat ---
+function addMessage(role, content) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const time = new Date().toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'});
+
+  let html = content;
+  if (role === 'assistant') {
+    html = renderMarkdown(content);
+  }
+
+  div.innerHTML = '<div class="bubble">' + html + '</div><div class="time">' + time + '</div>';
+  document.getElementById('messages').appendChild(div);
+  scrollToBottom();
+}
+
+function sendMessage() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({type:'chat', data:text}));
+  } else {
+    // Fallback: REST API
+    fetch(API + '/api/v1/chat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: text, model: currentModel})
+    }).then(r => r.json()).then(data => {
+      addMessage('assistant', data.response || data.error || 'No response');
+    }).catch(err => {
+      addMessage('system', 'Connection error: ' + err.message);
+    });
+  }
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  // Auto-resize textarea
+  const ta = e.target;
+  setTimeout(() => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }, 0);
+}
+
+// --- Persistence (localStorage) ---
+function savePrefs() {
+  try { localStorage.setItem('gf_model', currentModel); } catch(e) {}
+}
+function getSavedModel() {
+  try { return localStorage.getItem('gf_model') || ''; } catch(e) { return ''; }
+}
+function saveWorkspaces(paths) {
+  try { localStorage.setItem('gf_workspaces', JSON.stringify(paths)); } catch(e) {}
+}
+function getSavedWorkspaces() {
+  try { return JSON.parse(localStorage.getItem('gf_workspaces') || 'null'); } catch(e) { return null; }
+}
+
+// --- Model filtering (latest per family only) ---
+function filterLatestModels(models) {
+  const others = models.filter(m => m.provider !== 'anthropic');
+  const anthropic = models.filter(m => m.provider === 'anthropic');
+  // Remove dated versions (ending in -YYYYMMDD)
+  const nonDated = anthropic.filter(m => !/\d{8}$/.test(m.model));
+  // Group by family (opus/sonnet/haiku)
+  const families = {};
+  nonDated.forEach(m => {
+    const fam = (m.model.match(/claude-(opus|sonnet|haiku)/) || [])[1] || 'other';
+    if (!families[fam]) families[fam] = [];
+    families[fam].push(m);
+  });
+  // Pick highest version from each family (alphabetical sort works for single-digit versions)
+  const latest = [];
+  Object.values(families).forEach(group => {
+    group.sort((a, b) => a.model.localeCompare(b.model));
+    latest.push(group[group.length - 1]);
+  });
+  // Order: opus, sonnet, haiku
+  const order = { opus: 0, sonnet: 1, haiku: 2 };
+  latest.sort((a, b) => {
+    const fa = (a.model.match(/claude-(opus|sonnet|haiku)/) || [])[1] || '';
+    const fb = (b.model.match(/claude-(opus|sonnet|haiku)/) || [])[1] || '';
+    return (order[fa] ?? 99) - (order[fb] ?? 99);
+  });
+  return [...latest, ...others];
+}
+
+// --- Models ---
+async function loadModels() {
+  try {
+    const resp = await fetch(API + '/api/v1/models');
+    const data = await resp.json();
+    const select = document.getElementById('model-select');
+    select.innerHTML = '';
+    const savedModel = getSavedModel();
+    const allModels = data.models || [];
+    const filtered = filterLatestModels(allModels);
+
+    if (filtered.length > 0) {
+      filtered.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.id + (m.active ? ' (active)' : '') + (m.status !== 'ready' ? ' [' + m.status + ']' : '');
+        opt.selected = m.active;
+        if (m.active) currentModel = m.id;
+        select.appendChild(opt);
+      });
+    }
+
+    // Restore saved model from localStorage
+    if (savedModel && !currentModel) {
+      const exists = filtered.find(m => m.id === savedModel);
+      if (exists) {
+        currentModel = savedModel;
+        select.value = savedModel;
+        fetch(API + '/api/v1/models', {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({model: savedModel})
+        }).then(() => loadModels());
+        return;
+      }
+    }
+    if (!currentModel && data.default) {
+      currentModel = data.default;
+    }
+  } catch (e) {
+    console.log('Models not available:', e);
+  }
+}
+
+async function switchModel(modelId) {
+  const cleanId = modelId.replace(/ \(active\)$/, '').replace(/ \[.*\]$/, '');
+  try {
+    const resp = await fetch(API + '/api/v1/models', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({model: cleanId})
+    });
+    if (resp.ok) {
+      currentModel = cleanId;
+      savePrefs();
+      addMessage('system', 'Model switched to: ' + cleanId);
+    }
+  } catch (e) {
+    console.error('Switch model error:', e);
+  }
+}
+
+// --- Sessions ---
+async function loadSessions() {
+  try {
+    const resp = await fetch(API + '/api/v1/sessions');
+    const sessions = await resp.json();
+    const list = document.getElementById('session-list');
+    list.innerHTML = '';
+
+    if (sessions && sessions.length > 0) {
+      sessions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'session-item' + (s.id === currentSession ? ' active' : '');
+        const projCount = s.projects ? s.projects.length : 0;
+        const projLabel = projCount > 0
+          ? s.projects.map(p => p.split('/').pop()).join(', ')
+          : (s.project || 'General');
+        div.innerHTML = '<div class="name">' + projLabel + '</div><div class="meta">' + s.status + ' · ' + s.id + (projCount > 0 ? ' · ' + projCount + ' repos' : '') + '</div><button class="close-btn" title="Close session" onclick="event.stopPropagation();closeSession(\'' + s.id + '\')">&times;</button>';
+        div.onclick = () => { connectWS(s.id); currentSession = s.id; loadSessions(); };
+        list.appendChild(div);
+      });
+    } else {
+      list.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;text-align:center">No sessions yet.<br>Send a message to start.</div>';
+    }
+  } catch (e) {}
+}
+
+async function createSession() {
+  // Fetch projects from proxy (scans real Windows filesystem)
+  try {
+    const resp = await fetch(API + '/api/v1/projects');
+    const data = await resp.json();
+    const projects = data.projects || data || [];
+    const workspaces = data.workspaces || [];
+    showProjectPicker(projects, workspaces);
+  } catch (e) {
+    startSession([]);
+  }
+}
+
+function showProjectPicker(projects, wsPaths) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  // Only show git repos
+  const gitProjects = projects.filter(p => p.git);
+  const nonGitProjects = projects.filter(p => !p.git);
+  const wsLabel = wsPaths.map(p => {
+    const parts = p.replace(/\\/g, '/').split('/').filter(Boolean);
+    return parts[parts.length - 1] || p;
+  }).join(', ');
+
+  // Use docker_path for session (agent needs Docker paths), show Windows path to user
+  function renderProjects(list, checked) {
+    if (list.length === 0) return '';
+    return list.map(p => {
+      const dockerPath = p.docker_path || p.path;
+      const displayPath = p.path; // Windows path for display
+      return `<label class="project-item" data-path="${dockerPath}" onclick="this.classList.toggle('selected')">
+        <input type="checkbox" value="${dockerPath}" ${checked ? 'checked' : ''}>
+        <div><div class="pname">${p.name}</div><div class="ppath">${displayPath}</div></div>
+        ${p.git ? '<span class="pgit">git</span>' : ''}
+      </label>`;
+    }).join('');
+  }
+
+  const noReposMsg = gitProjects.length === 0
+    ? '<div style="color:var(--text2);padding:20px;text-align:center">No git repositories found.<br>Add workspace paths in <a href="#" onclick="this.closest(\'.modal-overlay\').remove();document.querySelector(\'nav button:last-child\').click()" style="color:var(--accent)">Settings</a>.</div>'
+    : '';
+
+  overlay.innerHTML = `<div class="modal">
+    <h3 style="display:flex;align-items:center;gap:8px">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="var(--green)"><path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 010-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1h-8a1 1 0 00-1 1v6.708A2.486 2.486 0 014.5 9h8V1.5zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"/></svg>
+      New Session
+    </h3>
+    <div class="subtitle">Select repositories the AI agent can access. Scanning: <span style="color:var(--accent);font-family:var(--mono);font-size:12px">${wsLabel}</span></div>
+    ${gitProjects.length > 0 ? `<div class="select-all-row" onclick="toggleSelectAll(this)">
+      <input type="checkbox" id="select-all" checked> Select all git repos (${gitProjects.length})
+    </div>` : ''}
+    <div class="project-list" id="project-picker-list">
+      ${noReposMsg}
+      ${renderProjects(gitProjects, true)}
+      ${nonGitProjects.length > 0 ? '<div style="font-size:11px;color:var(--text2);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:4px">Other folders (no git)</div>' : ''}
+      ${renderProjects(nonGitProjects, false)}
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn-primary" onclick="confirmProjectPicker()">Create Session</button>
+    </div>
+  </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+// --- Folder Browser (Windows-style directory picker) ---
+let _fbPathMapping = { workspace: '', docker_mount: '/workspace' }; // filled by browse response
+
+function winToDocker(winPath) {
+  // Map Windows path to Docker mount: C:/GC/mhub → /workspace/mhub
+  const ws = _fbPathMapping.workspace;
+  const mount = _fbPathMapping.docker_mount;
+  if (ws && winPath.startsWith(ws)) {
+    return mount + winPath.slice(ws.length);
+  }
+  return winPath; // passthrough if no mapping
+}
+
+async function showFolderBrowser(mode) {
+  // mode: 'workspace' (add to workspace settings)
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  let currentPath = '';
+  let selectedPath = null;
+  let isWindows = false;
+
+  const folderIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="var(--yellow)"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7H1.75z"/></svg>';
+  const gitIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="var(--green)"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7H1.75z"/></svg>';
+  const driveIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="var(--accent)"><path fill-rule="evenodd" d="M2 3.75C2 2.784 2.784 2 3.75 2h8.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0112.25 14h-8.5A1.75 1.75 0 012 12.25v-8.5zm1.75-.25a.25.25 0 00-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25v-8.5a.25.25 0 00-.25-.25h-8.5zM10 8a2 2 0 11-4 0 2 2 0 014 0z"/></svg>';
+
+  overlay.innerHTML = `<div class="modal" style="width:520px">
+    <h3 style="display:flex;align-items:center;gap:8px">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="var(--accent)"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2c-.33-.44-.85-.7-1.4-.7H1.75z"/></svg>
+      Select Folder
+    </h3>
+    <div class="subtitle">Browse to select a folder.</div>
+    <div class="folder-browser">
+      <div class="folder-breadcrumb" id="fb-breadcrumb"></div>
+      <div class="folder-list" id="fb-list">
+        <div style="padding:20px;text-align:center;color:var(--text2)">Loading...</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px" id="fb-selected">
+      <span id="fb-selected-text">No folder selected</span>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn-primary" id="fb-confirm" disabled>Select</button>
+    </div>
+  </div>`;
+
+  document.body.appendChild(overlay);
+
+  const breadcrumb = document.getElementById('fb-breadcrumb');
+  const list = document.getElementById('fb-list');
+  const selectedEl = document.getElementById('fb-selected-text');
+  const confirm = document.getElementById('fb-confirm');
+
+  function esc(s) { return s.replace(/'/g, "\\'"); }
+
+  async function navigateTo(path) {
+    currentPath = path;
+    selectedPath = path;
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2)">Loading...</div>';
+
+    try {
+      const resp = await fetch(API + '/api/v1/browse?path=' + encodeURIComponent(path));
+      const data = await resp.json();
+
+      isWindows = data.platform === 'win32';
+      if (data.workspace) _fbPathMapping.workspace = data.workspace;
+      if (data.docker_mount) _fbPathMapping.docker_mount = data.docker_mount;
+
+      if (data.error) {
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">' + data.error + '</div>';
+        return;
+      }
+
+      // Breadcrumb for Windows paths (C:/GC/mhub)
+      const pathStr = data.path;
+      let bc = '';
+      if (isWindows) {
+        // Drive selector at start
+        bc += '<span class="bc-seg" onclick="window._fbNav(\'\')" title="Drives">PC</span>';
+        const parts = pathStr.split('/').filter(Boolean);
+        let buildPath = '';
+        parts.forEach((p, i) => {
+          buildPath += (i === 0 ? '' : '/') + p;
+          if (i === 0) buildPath = p; // drive letter: "C:"
+          const bp = i === 0 ? p + '/' : buildPath;
+          bc += '<span class="bc-sep">&rsaquo;</span><span class="bc-seg" onclick="window._fbNav(\'' + esc(bp) + '\')">' + p + '</span>';
+        });
+      } else {
+        const parts = pathStr.split('/').filter(Boolean);
+        bc = '<span class="bc-seg" onclick="window._fbNav(\'/\')">/</span>';
+        let buildPath = '';
+        parts.forEach(p => {
+          buildPath += '/' + p;
+          bc += '<span class="bc-sep">&rsaquo;</span><span class="bc-seg" onclick="window._fbNav(\'' + esc(buildPath) + '\')">' + p + '</span>';
+        });
+      }
+      breadcrumb.innerHTML = bc;
+
+      // Show drives if available (root level on Windows)
+      const entries = data.entries || [];
+      let html = '';
+
+      if (data.drives && data.drives.length > 0 && !path) {
+        html = data.drives.map(d =>
+          '<div class="folder-entry" onclick="window._fbNav(\'' + esc(d) + '\')">'
+          + '<span class="fe-icon">' + driveIcon + '</span>'
+          + '<span class="fe-name" style="font-weight:500">Drive ' + d.charAt(0) + ': (' + d + ')</span></div>'
+        ).join('');
+      } else if (entries.length === 0) {
+        html = '<div style="padding:20px;text-align:center;color:var(--text2)">Empty folder</div>';
+      } else {
+        // Up directory
+        if (data.parent && data.parent !== data.path) {
+          html += '<div class="folder-entry" onclick="window._fbNav(\'' + esc(data.parent) + '\')" style="color:var(--text2)">'
+            + '<span class="fe-icon" style="font-size:14px">..</span>'
+            + '<span class="fe-name">(up)</span></div>';
+        }
+        html += entries.map(e => {
+          const gitBadge = e.is_git ? '<span class="fe-git">git</span>' : '';
+          const icon = e.is_git ? gitIcon : folderIcon;
+          return '<div class="folder-entry" onclick="window._fbClick(this, \'' + esc(e.path) + '\')" ondblclick="window._fbNav(\'' + esc(e.path) + '\')">'
+            + '<span class="fe-icon">' + icon + '</span>'
+            + '<span class="fe-name">' + e.name + '</span>'
+            + gitBadge + '</div>';
+        }).join('');
+      }
+      list.innerHTML = html;
+
+      // Update selected display
+      selectedEl.textContent = data.path || 'Select a drive';
+      selectedEl.style.color = 'var(--text)';
+      confirm.disabled = !path;
+
+    } catch (e) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">Error: ' + e.message + '</div>';
+    }
+  }
+
+  // Single click = select folder, show path
+  window._fbClick = (el, path) => {
+    selectedPath = path;
+    selectedEl.textContent = path;
+    selectedEl.style.color = 'var(--accent)';
+    document.querySelectorAll('.folder-entry').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    confirm.disabled = false;
+  };
+
+  window._fbNav = navigateTo;
+
+  function confirmSelection() {
+    if (!selectedPath) return;
+    overlay.remove();
+    // Pass Windows path directly - proxy handles persistence
+    if (mode === 'workspace') {
+      addWorkspacePathDirect(selectedPath);
+    }
+  }
+
+  confirm.onclick = confirmSelection;
+
+  // Start at workspace
+  navigateTo('');
+}
+
+function toggleSelectAll(row) {
+  const cb = row.querySelector('input');
+  cb.checked = !cb.checked;
+  const items = document.querySelectorAll('#project-picker-list input[type="checkbox"]');
+  items.forEach(i => {
+    i.checked = cb.checked;
+    i.closest('.project-item').classList.toggle('selected', cb.checked);
+  });
+}
+
+async function confirmProjectPicker() {
+  const checkboxes = document.querySelectorAll('#project-picker-list input[type="checkbox"]:checked');
+  const selectedPaths = Array.from(checkboxes).map(cb => cb.value);
+  document.querySelector('.modal-overlay')?.remove();
+  startSession(selectedPaths);
+}
+
+async function startSession(projects) {
+  try {
+    const projectName = projects.length > 0 ? projects.map(p => p.split('/').pop()).join(', ') : 'General';
+    const resp = await fetch(API + '/api/v1/sessions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({project: projectName, projects: projects})
+    });
+    const session = await resp.json();
+    connectWS(session.id);
+    currentSession = session.id;
+    loadSessions();
+    document.getElementById('messages').innerHTML = '';
+    if (projects.length > 0) {
+      addMessage('system', 'Session ' + session.id + ' created. AI has file access to: ' + projects.map(p => p.split('/').pop()).join(', '));
+    } else {
+      addMessage('system', 'New session created: ' + session.id);
+    }
+  } catch (e) {
+    addMessage('system', 'Error creating session: ' + e.message);
+  }
+}
+
+async function closeSession(id) {
+  try {
+    await fetch(API + '/api/v1/sessions', {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id: id})
+    });
+    if (currentSession === id) {
+      if (ws) ws.close();
+      currentSession = null;
+      document.getElementById('messages').innerHTML = '';
+      addMessage('system', 'Session ' + id + ' closed.');
+    }
+    loadSessions();
+  } catch (e) {}
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  try {
+    const [health, sessions, audit] = await Promise.all([
+      fetch(API + '/api/v1/health').then(r=>r.json()),
+      fetch(API + '/api/v1/sessions').then(r=>r.json()),
+      fetch(API + '/api/v1/audit').then(r=>r.json())
+    ]);
+
+    document.getElementById('version').textContent = 'v' + (health.version || '?');
+    document.getElementById('dash-sessions').textContent = sessions ? sessions.length : 0;
+    document.getElementById('dash-model').textContent = currentModel || '-';
+    document.getElementById('dash-provider').textContent = currentModel ? currentModel.split('/')[0] : '-';
+    document.getElementById('dash-audit').textContent = audit ? audit.length : 0;
+
+    const tbody = document.querySelector('#dash-activity tbody');
+    tbody.innerHTML = '';
+    (audit || []).slice(0, 10).forEach(e => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + new Date(e.timestamp).toLocaleString('cs-CZ') + '</td><td>' + e.action + '</td><td>' + (e.user||'-') + '</td><td>' + (e.tool||'-') + '</td>';
+      tbody.appendChild(tr);
+    });
+  } catch (e) {}
+}
+
+// --- Audit ---
+async function loadAudit() {
+  try {
+    const audit = await fetch(API + '/api/v1/audit').then(r=>r.json());
+    const tbody = document.querySelector('#audit-table tbody');
+    tbody.innerHTML = '';
+    (audit || []).forEach(e => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + e.id + '</td><td>' + new Date(e.timestamp).toLocaleString('cs-CZ') + '</td><td>' + e.action + '</td><td>' + (e.user||'-') + '</td><td>' + (e.tool||'-') + '</td><td style="font-family:var(--mono);font-size:11px">' + (e.hash||'').substring(0,16) + '...</td>';
+      tbody.appendChild(tr);
+    });
+  } catch (e) {}
+}
+
+// --- Workspace ---
+async function loadWorkspacePaths() {
+  try {
+    const resp = await fetch(API + '/api/v1/workspace');
+    const data = await resp.json();
+    const container = document.getElementById('workspace-paths');
+    if (!container) return;
+    container.innerHTML = '';
+    (data.paths || []).forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'setting-row';
+      row.innerHTML = '<label style="font-family:var(--mono)">' + p + '</label><button onclick="removeWorkspacePath(\'' + p + '\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px" title="Remove">&times;</button>';
+      container.appendChild(row);
+    });
+  } catch (e) {}
+}
+
+async function addWorkspacePathDirect(path) {
+  // path is a Windows path from folder browser (e.g. C:/GC)
+  if (!path) return;
+  try {
+    const resp = await fetch(API + '/api/v1/workspace');
+    const data = await resp.json();
+    const paths = data.paths || [];
+    if (!paths.includes(path)) paths.push(path);
+    await fetch(API + '/api/v1/workspace', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({paths})
+    });
+    saveWorkspaces(paths);
+    loadWorkspacePaths();
+  } catch (e) {}
+}
+
+async function removeWorkspacePath(path) {
+  try {
+    const resp = await fetch(API + '/api/v1/workspace');
+    const data = await resp.json();
+    const paths = (data.paths || []).filter(p => p !== path);
+    const defaultWs = resolve(location.origin).includes('localhost') ? 'C:/GC' : '/workspace';
+    const finalPaths = paths.length > 0 ? paths : [defaultWs];
+    await fetch(API + '/api/v1/workspace', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({paths: finalPaths})
+    });
+    saveWorkspaces(finalPaths);
+    loadWorkspacePaths();
+  } catch (e) {}
+}
+
+// --- Settings nav ---
+function scrollToSetting(id, btn) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  document.querySelectorAll('.settings-nav button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// --- Settings helpers ---
+function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val ?? ''; }
+function setCheck(id, val) { const el = document.getElementById(id); if (el) el.checked = !!val; }
+function setSecret(id, maskedVal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = maskedVal || '';
+  el.dataset.original = maskedVal || '';
+  el.type = 'password';
+}
+function toggleSecret(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const btn = el.parentElement.querySelector('button');
+  if (el.type === 'password') { el.type = 'text'; if (btn) btn.textContent = 'hide'; }
+  else { el.type = 'password'; if (btn) btn.textContent = 'show'; }
+}
+function secretValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  if (el.value === el.dataset.original) return el.dataset.original; // unchanged → send mask back
+  return el.value; // user typed new value
+}
+
+// --- Generic save ---
+async function saveSection(section) {
+  const statusEl = document.getElementById('status-' + section);
+  if (statusEl) { statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--yellow)'; }
+  try {
+    const data = collectSectionData(section);
+    const resp = await fetch(API + '/api/v1/config', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ section, data })
+    });
+    const result = await resp.json();
+    if (result.error) {
+      if (statusEl) { statusEl.textContent = 'Error: ' + result.error; statusEl.style.color = 'var(--red)'; }
+    } else {
+      if (statusEl) { statusEl.textContent = 'Saved!'; statusEl.style.color = 'var(--green)'; }
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = 'Failed: ' + e.message; statusEl.style.color = 'var(--red)'; }
+  }
+}
+
+function collectSectionData(section) {
+  switch (section) {
+    case 'general': return {
+      name: document.getElementById('s-gen-name')?.value || '',
+      email: document.getElementById('s-gen-email')?.value || '',
+      log_level: document.getElementById('s-gen-loglevel')?.value || 'info',
+      language: document.getElementById('s-gen-language')?.value || 'cs',
+      data_dir: document.getElementById('s-gen-datadir')?.value || '',
+    };
+    case 'gateway': return {
+      host: document.getElementById('s-gw-host')?.value || '',
+      port: parseInt(document.getElementById('s-gw-port')?.value) || 9090,
+      webui_port: parseInt(document.getElementById('s-gw-webuiport')?.value) || 9091,
+      tls: document.getElementById('s-gw-tls')?.checked || false,
+      cert_file: document.getElementById('s-gw-certfile')?.value || '',
+      key_file: document.getElementById('s-gw-keyfile')?.value || '',
+    };
+    case 'ca': return {
+      cert_lifetime: document.getElementById('s-ca-lifetime')?.value || '',
+      auto_renew_threshold: parseFloat(document.getElementById('s-ca-renewthresh')?.value) || 0,
+      algo: document.getElementById('s-ca-algo')?.value || '',
+      device_cert_lifetime: document.getElementById('s-ca-devlifetime')?.value || '',
+      max_devices_per_user: parseInt(document.getElementById('s-ca-maxdevices')?.value) || 0,
+      permissions_mode: document.getElementById('s-ca-permmode')?.value || '',
+      allowed_device_tools: (document.getElementById('s-ca-devtools')?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+    };
+    case 'ai': return {
+      providers: collectArrayItems('ai-providers', (item, idx) => ({
+        name: item.querySelector('.ai-prov-name')?.value || '',
+        endpoint: item.querySelector('.ai-prov-endpoint')?.value || '',
+        api_key: secretValue('ai-prov-key-' + idx) || '',
+        model: item.querySelector('.ai-prov-model')?.value || '',
+      })),
+      policies: collectArrayItems('ai-policies', (item) => ({
+        project_pattern: item.querySelector('.ai-pol-pattern')?.value || '',
+        allowed_providers: (item.querySelector('.ai-pol-providers')?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+        reason: item.querySelector('.ai-pol-reason')?.value || '',
+      })),
+    };
+    case 'sandbox': return {
+      enabled: document.getElementById('s-sb-enabled')?.checked || false,
+      docker_socket: document.getElementById('s-sb-socket')?.value || '',
+      network_mode: document.getElementById('s-sb-netmode')?.value || '',
+      cpu: document.getElementById('s-sb-cpu')?.value || '',
+      memory: document.getElementById('s-sb-memory')?.value || '',
+      timeout: document.getElementById('s-sb-timeout')?.value || '',
+    };
+    case 'audit': return {
+      enabled: document.getElementById('s-aud-enabled')?.checked || false,
+      db_path: document.getElementById('s-aud-dbpath')?.value || '',
+      retain_days: parseInt(document.getElementById('s-aud-retaindays')?.value) || 0,
+    };
+    case 'notify': return {
+      channels: collectArrayItems('notify-channels', (item, idx) => ({
+        type: item.querySelector('.nch-type')?.value || 'email',
+        enabled: item.querySelector('.nch-enabled')?.checked || false,
+        address: item.querySelector('.nch-address')?.value || '',
+        bot_token: secretValue('nch-bottoken-' + idx) || '',
+        chat_id: item.querySelector('.nch-chatid')?.value || '',
+        phone: item.querySelector('.nch-phone')?.value || '',
+      })),
+      events: {
+        pipeline_failures: document.getElementById('s-nev-pipeline')?.checked || false,
+        pr_assigned: document.getElementById('s-nev-pr')?.checked || false,
+        all_commits: document.getElementById('s-nev-commits')?.checked || false,
+        autofix_completed: document.getElementById('s-nev-autofix')?.checked || false,
+      },
+      morning_digest: {
+        mode: document.getElementById('s-nd-mode')?.value || 'on_demand',
+        time: document.getElementById('s-nd-time')?.value || '07:00',
+      },
+      quiet_hours: {
+        enabled: document.getElementById('s-qh-enabled')?.checked || false,
+        start: document.getElementById('s-qh-start')?.value || '22:00',
+        end: document.getElementById('s-qh-end')?.value || '07:00',
+      },
+    };
+    case 'autofix': return {
+      default_policy: document.getElementById('s-af-default')?.value || 'notify_only',
+      max_auto_fixes: parseInt(document.getElementById('s-af-max')?.value) || 3,
+      escalate_after: document.getElementById('s-af-escalate')?.value || '30m',
+      repo_policies: collectArrayItems('autofix-rules', (item) => ({
+        repo: item.querySelector('.af-repo')?.value || '',
+        rules: collectSubArrayItems(item, '.af-rule-item', (rule) => ({
+          branch: rule.querySelector('.af-rule-branch')?.value || '',
+          on_failure: rule.querySelector('.af-rule-onfail')?.value || 'notify_only',
+          pr_assignee: rule.querySelector('.af-rule-assignee')?.value || '',
+          require_review: rule.querySelector('.af-rule-review')?.checked || false,
+          require_tests: rule.querySelector('.af-rule-tests')?.checked || false,
+          max_auto_fixes: parseInt(rule.querySelector('.af-rule-max')?.value) || 0,
+          escalate_after: rule.querySelector('.af-rule-escalate')?.value || '',
+          notify_channels: (rule.querySelector('.af-rule-notify')?.value || '').split(',').map(s=>s.trim()).filter(Boolean),
+        })),
+      })),
+    };
+    case 'cicd': return {
+      azure_devops: {
+        organization: document.getElementById('s-cicd-adoorg')?.value || '',
+        pat_token: secretValue('s-cicd-adopat'),
+      },
+      gitlab: {
+        url: document.getElementById('s-cicd-glurl')?.value || '',
+        token: secretValue('s-cicd-gltoken'),
+      },
+      github: {
+        token: secretValue('s-cicd-ghtoken'),
+      },
+    };
+    case 'index': return {
+      enabled: document.getElementById('s-idx-enabled')?.checked || false,
+      background_watch: document.getElementById('s-idx-bg')?.checked || false,
+      embedding_model: document.getElementById('s-idx-embedding')?.value || '',
+    };
+    case 'projects': return {
+      projects: collectArrayItems('projects-list', (item) => ({
+        name: item.querySelector('.proj-name')?.value || '',
+        path: item.querySelector('.proj-path')?.value || '',
+        build_tool: item.querySelector('.proj-build')?.value || '',
+        cicd: item.querySelector('.proj-cicd')?.value || '',
+      })),
+    };
+    default: return {};
+  }
+}
+
+function collectArrayItems(containerId, mapFn) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  const items = container.querySelectorAll('.array-item');
+  return Array.from(items).map((item, idx) => mapFn(item, idx));
+}
+
+function collectSubArrayItems(parent, selector, mapFn) {
+  const items = parent.querySelectorAll(selector);
+  return Array.from(items).map((item, idx) => mapFn(item, idx));
+}
+
+// --- Array renderers ---
+function renderAIProviders(arr) {
+  const c = document.getElementById('ai-providers');
+  c.innerHTML = '';
+  (arr || []).forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'array-item';
+    div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+      <div class="setting-row"><label title="Identifikator poskytovatele (napr. anthropic, openai, ollama)">Name</label><input class="setting-input ai-prov-name" value="${esc(p.name)}"></div>
+      <div class="setting-row"><label title="URL API endpointu poskytovatele (napr. https://api.openai.com)">Endpoint</label><input class="setting-input ai-prov-endpoint" value="${esc(p.endpoint)}"></div>
+      <div class="setting-row"><label title="API klic pro autentizaci. Muze byt keychain: reference pro bezpecne ulozeni">API Key</label><div class="secret-field"><input type="password" id="ai-prov-key-${i}" value="${esc(p.api_key)}" data-original="${esc(p.api_key)}"><button onclick="toggleSecret('ai-prov-key-${i}')">show</button></div></div>
+      <div class="setting-row"><label title="Vychozi model tohoto poskytovatele (napr. claude-sonnet-4-20250514, gpt-4)">Model</label><input class="setting-input ai-prov-model" value="${esc(p.model)}"></div>`;
+    c.appendChild(div);
+  });
+}
+
+function renderAIPolicies(arr) {
+  const c = document.getElementById('ai-policies');
+  c.innerHTML = '';
+  (arr || []).forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'array-item';
+    div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+      <div class="setting-row"><label title="Glob pattern pro nazev projektu (napr. *-internal, payment-*)">Project Pattern</label><input class="setting-input ai-pol-pattern" value="${esc(p.project_pattern)}"></div>
+      <div class="setting-row"><label title="Poskytovatele povoleni pro tento projekt (carkou oddelene, napr. anthropic, openai)">Allowed Providers</label><input class="setting-input ai-pol-providers" value="${esc((p.allowed_providers||[]).join(', '))}"></div>
+      <div class="setting-row"><label title="Duvod pro toto omezeni (napr. 'GDPR - data nesmi opustit EU')">Reason</label><input class="setting-input ai-pol-reason" value="${esc(p.reason)}"></div>`;
+    c.appendChild(div);
+  });
+}
+
+function renderNotifyChannelsEditable(arr) {
+  const c = document.getElementById('notify-channels');
+  c.innerHTML = '';
+  (arr || []).forEach((ch, i) => {
+    const div = document.createElement('div');
+    div.className = 'array-item';
+    let conditionalFields = '';
+    if (ch.type === 'email') {
+      conditionalFields = `<div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value="${esc(ch.address)}"></div>`;
+    } else if (ch.type === 'telegram') {
+      conditionalFields = `<div class="setting-row nch-cond"><label>Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${i}" value="${esc(ch.bot_token)}" data-original="${esc(ch.bot_token)}"><button onclick="toggleSecret('nch-bottoken-${i}')">show</button></div></div>
+        <div class="setting-row nch-cond"><label>Chat ID</label><input class="setting-input nch-chatid" value="${esc(ch.chat_id)}"></div>`;
+    } else if (ch.type === 'whatsapp' || ch.type === 'sms') {
+      conditionalFields = `<div class="setting-row nch-cond"><label>Phone</label><input class="setting-input nch-phone" value="${esc(ch.phone)}"></div>`;
+    }
+    div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+      <div class="setting-row"><label>Type</label>
+        <select class="setting-select nch-type" onchange="updateChannelFields(this)">
+          <option value="email" ${ch.type==='email'?'selected':''}>email</option>
+          <option value="telegram" ${ch.type==='telegram'?'selected':''}>telegram</option>
+          <option value="whatsapp" ${ch.type==='whatsapp'?'selected':''}>whatsapp</option>
+          <option value="sms" ${ch.type==='sms'?'selected':''}>sms</option>
+          <option value="cli" ${ch.type==='cli'?'selected':''}>cli</option>
+        </select>
+      </div>
+      <div class="setting-row"><label>Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" ${ch.enabled?'checked':''}></div></div>
+      ${conditionalFields}
+      <input type="hidden" class="nch-address" value="${esc(ch.address||'')}">
+      <input type="hidden" class="nch-chatid" value="${esc(ch.chat_id||'')}">
+      <input type="hidden" class="nch-phone" value="${esc(ch.phone||'')}">`;
+    // Remove duplicate hidden inputs if visible ones exist
+    const visibleAddr = div.querySelectorAll('.setting-row .nch-address');
+    const hiddenAddr = div.querySelectorAll('input[type=hidden].nch-address');
+    if (visibleAddr.length > 0 && hiddenAddr.length > 0) hiddenAddr.forEach(h => h.remove());
+    const visibleChat = div.querySelectorAll('.setting-row .nch-chatid');
+    const hiddenChat = div.querySelectorAll('input[type=hidden].nch-chatid');
+    if (visibleChat.length > 0 && hiddenChat.length > 0) hiddenChat.forEach(h => h.remove());
+    const visiblePhone = div.querySelectorAll('.setting-row .nch-phone');
+    const hiddenPhone = div.querySelectorAll('input[type=hidden].nch-phone');
+    if (visiblePhone.length > 0 && hiddenPhone.length > 0) hiddenPhone.forEach(h => h.remove());
+    c.appendChild(div);
+  });
+}
+
+function updateChannelFields(selectEl) {
+  const item = selectEl.closest('.array-item');
+  // Remove old conditional fields
+  item.querySelectorAll('.nch-cond').forEach(el => el.remove());
+  const type = selectEl.value;
+  const idx = Array.from(item.parentElement.children).indexOf(item);
+  let html = '';
+  if (type === 'email') {
+    html = `<div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value=""></div>`;
+  } else if (type === 'telegram') {
+    html = `<div class="setting-row nch-cond"><label>Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${idx}" value="" data-original=""><button onclick="toggleSecret('nch-bottoken-${idx}')">show</button></div></div>
+      <div class="setting-row nch-cond"><label>Chat ID</label><input class="setting-input nch-chatid" value=""></div>`;
+  } else if (type === 'whatsapp' || type === 'sms') {
+    html = `<div class="setting-row nch-cond"><label>Phone</label><input class="setting-input nch-phone" value=""></div>`;
+  }
+  if (html) {
+    const enabledRow = item.querySelectorAll('.setting-row')[1]; // after type and enabled
+    enabledRow.insertAdjacentHTML('afterend', html);
+  }
+}
+
+function renderRepoPolicies(arr) {
+  const c = document.getElementById('autofix-rules');
+  c.innerHTML = '';
+  (arr || []).forEach((rp, rpIdx) => {
+    const div = document.createElement('div');
+    div.className = 'array-item';
+    let rulesHtml = '';
+    (rp.rules || []).forEach(rule => {
+      rulesHtml += `<div class="array-item af-rule-item" style="margin-left:12px;background:var(--bg2)">
+        <button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+        <div class="setting-row"><label title="Nazev branch (napr. main, develop, release/*)">Branch</label><input class="setting-input af-rule-branch" value="${esc(rule.branch)}"></div>
+        <div class="setting-row"><label title="Akce pri selhani pipeline: notify_only = jen upozorni, fix_and_pr = AI opravi a vytvori PR, fix_and_merge = opravi a automaticky mergnuje">On Failure</label>
+          <select class="setting-select af-rule-onfail">
+            <option value="notify_only" ${rule.on_failure==='notify_only'?'selected':''}>notify_only</option>
+            <option value="fix_and_pr" ${rule.on_failure==='fix_and_pr'?'selected':''}>fix_and_pr</option>
+            <option value="fix_and_merge" ${rule.on_failure==='fix_and_merge'?'selected':''}>fix_and_merge</option>
+          </select>
+        </div>
+        <div class="setting-row"><label title="Uzivatel, kteremu se automaticky priradi vytvoreny PR (username)">PR Assignee</label><input class="setting-input af-rule-assignee" value="${esc(rule.pr_assignee||'')}"></div>
+        <div class="setting-row"><label title="Vyzadovat schvaleni (code review) pred mergnovanim auto-fix PR">Require Review</label><div class="toggle"><input type="checkbox" class="af-rule-review" ${rule.require_review?'checked':''}></div></div>
+        <div class="setting-row"><label title="Mergnout auto-fix PR pouze pokud vsechny testy projdou">Require Tests</label><div class="toggle"><input type="checkbox" class="af-rule-tests" ${rule.require_tests?'checked':''}></div></div>
+        <div class="setting-row"><label title="Maximalni pocet auto-fix pokusu pro tuto branch za den">Max Auto-fixes</label><input class="setting-input af-rule-max" type="number" value="${rule.max_auto_fixes||0}"></div>
+        <div class="setting-row"><label title="Cas po kterem se neuspesna oprava eskaluje (format Go duration)">Escalate After</label><input class="setting-input af-rule-escalate" value="${esc(rule.escalate_after||'')}"></div>
+        <div class="setting-row"><label title="Notifikacni kanaly kam se poslou upozorneni pro tuto branch (carkou oddelene)">Notify Channels</label><input class="setting-input af-rule-notify" value="${esc((rule.notify_channels||[]).join(', '))}"></div>
+      </div>`;
+    });
+    div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+      <div class="setting-row"><label>Repo</label><input class="setting-input af-repo" value="${esc(rp.repo)}"></div>
+      <div style="margin-top:8px"><strong style="font-size:12px;color:var(--text2)">Branch Rules:</strong></div>
+      <div class="af-rules-container">${rulesHtml}</div>
+      <button class="add-item-btn" onclick="addBranchRule(this)" style="margin-top:6px;font-size:12px;padding:6px">+ Add Branch Rule</button>`;
+    c.appendChild(div);
+  });
+}
+
+function renderProjectsList(arr) {
+  const c = document.getElementById('projects-list');
+  c.innerHTML = '';
+  (arr || []).forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'array-item';
+    div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+      <div class="setting-row"><label title="Zobrazovany nazev projektu">Name</label><input class="setting-input proj-name" value="${esc(p.name)}"></div>
+      <div class="setting-row"><label title="Absolutni cesta k projektu na disku (napr. /workspace/my-app nebo C:/GC/my-app)">Path</label><input class="setting-input proj-path" value="${esc(p.path)}"></div>
+      <div class="setting-row"><label title="Sestavovaci nastroj projektu (gradle, maven, npm). Pouziva se pro auto-fix a indexovani">Build Tool</label>
+        <select class="setting-select proj-build">
+          <option value="" ${!p.build_tool?'selected':''}>-</option>
+          <option value="gradle" ${p.build_tool==='gradle'?'selected':''}>gradle</option>
+          <option value="maven" ${p.build_tool==='maven'?'selected':''}>maven</option>
+          <option value="npm" ${p.build_tool==='npm'?'selected':''}>npm</option>
+        </select>
+      </div>
+      <div class="setting-row"><label title="CI/CD platforma tohoto projektu pro sledovani pipeline a auto-fix">CI/CD</label>
+        <select class="setting-select proj-cicd">
+          <option value="" ${!p.cicd?'selected':''}>-</option>
+          <option value="azdo" ${p.cicd==='azdo'?'selected':''}>azdo</option>
+          <option value="gitlab" ${p.cicd==='gitlab'?'selected':''}>gitlab</option>
+          <option value="github" ${p.cicd==='github'?'selected':''}>github</option>
+        </select>
+      </div>`;
+    c.appendChild(div);
+  });
+}
+
+// --- Add item functions ---
+function addAIProvider() {
+  const c = document.getElementById('ai-providers');
+  const idx = c.querySelectorAll('.array-item').length;
+  const div = document.createElement('div');
+  div.className = 'array-item';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label title="Identifikator poskytovatele (napr. anthropic, openai, ollama)">Name</label><input class="setting-input ai-prov-name" value="" placeholder="openai"></div>
+    <div class="setting-row"><label title="URL API endpointu poskytovatele">Endpoint</label><input class="setting-input ai-prov-endpoint" value="" placeholder="https://api.openai.com"></div>
+    <div class="setting-row"><label title="API klic pro autentizaci">API Key</label><div class="secret-field"><input type="password" id="ai-prov-key-${idx}" value="" data-original=""><button onclick="toggleSecret('ai-prov-key-${idx}')">show</button></div></div>
+    <div class="setting-row"><label title="Vychozi model tohoto poskytovatele">Model</label><input class="setting-input ai-prov-model" value="" placeholder="gpt-4"></div>`;
+  c.appendChild(div);
+}
+
+function addAIPolicy() {
+  const c = document.getElementById('ai-policies');
+  const div = document.createElement('div');
+  div.className = 'array-item';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label title="Glob pattern pro nazev projektu">Project Pattern</label><input class="setting-input ai-pol-pattern" value="" placeholder="*"></div>
+    <div class="setting-row"><label title="Povoleni poskytovatele (carkou oddelene)">Allowed Providers</label><input class="setting-input ai-pol-providers" value="" placeholder="anthropic, openai"></div>
+    <div class="setting-row"><label title="Duvod pro toto omezeni">Reason</label><input class="setting-input ai-pol-reason" value="" placeholder=""></div>`;
+  c.appendChild(div);
+}
+
+function addNotifyChannel() {
+  const c = document.getElementById('notify-channels');
+  const idx = c.querySelectorAll('.array-item').length;
+  const div = document.createElement('div');
+  div.className = 'array-item';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label>Type</label>
+      <select class="setting-select nch-type" onchange="updateChannelFields(this)">
+        <option value="email" selected>email</option><option value="telegram">telegram</option><option value="whatsapp">whatsapp</option><option value="sms">sms</option><option value="cli">cli</option>
+      </select>
+    </div>
+    <div class="setting-row"><label>Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" checked></div></div>
+    <div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value="" placeholder="user@example.com"></div>
+    <input type="hidden" class="nch-chatid" value="">
+    <input type="hidden" class="nch-phone" value="">`;
+  c.appendChild(div);
+}
+
+function addRepoPolicy() {
+  const c = document.getElementById('autofix-rules');
+  const div = document.createElement('div');
+  div.className = 'array-item';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label>Repo</label><input class="setting-input af-repo" value="" placeholder="org/repo"></div>
+    <div style="margin-top:8px"><strong style="font-size:12px;color:var(--text2)">Branch Rules:</strong></div>
+    <div class="af-rules-container"></div>
+    <button class="add-item-btn" onclick="addBranchRule(this)" style="margin-top:6px;font-size:12px;padding:6px">+ Add Branch Rule</button>`;
+  c.appendChild(div);
+}
+
+function addBranchRule(btn) {
+  const container = btn.parentElement.querySelector('.af-rules-container');
+  const div = document.createElement('div');
+  div.className = 'array-item af-rule-item';
+  div.style.cssText = 'margin-left:12px;background:var(--bg2)';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label title="Nazev branch (napr. main, develop)">Branch</label><input class="setting-input af-rule-branch" value="" placeholder="main"></div>
+    <div class="setting-row"><label title="Akce pri selhani pipeline na teto branch">On Failure</label>
+      <select class="setting-select af-rule-onfail"><option value="notify_only">notify_only</option><option value="fix_and_pr">fix_and_pr</option><option value="fix_and_merge">fix_and_merge</option></select>
+    </div>
+    <div class="setting-row"><label title="Uzivatel prirazeny k auto-fix PR">PR Assignee</label><input class="setting-input af-rule-assignee" value=""></div>
+    <div class="setting-row"><label title="Vyzadovat code review pred merge">Require Review</label><div class="toggle"><input type="checkbox" class="af-rule-review"></div></div>
+    <div class="setting-row"><label title="Mergnout jen pokud testy projdou">Require Tests</label><div class="toggle"><input type="checkbox" class="af-rule-tests"></div></div>
+    <div class="setting-row"><label title="Max auto-fix pokusu za den">Max Auto-fixes</label><input class="setting-input af-rule-max" type="number" value="3"></div>
+    <div class="setting-row"><label title="Cas pro eskalaci (napr. 30m)">Escalate After</label><input class="setting-input af-rule-escalate" value="" placeholder="30m"></div>
+    <div class="setting-row"><label title="Notifikacni kanaly (carkou oddelene)">Notify Channels</label><input class="setting-input af-rule-notify" value="" placeholder="email, telegram"></div>`;
+  container.appendChild(div);
+}
+
+function addProject() {
+  const c = document.getElementById('projects-list');
+  const div = document.createElement('div');
+  div.className = 'array-item';
+  div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
+    <div class="setting-row"><label title="Zobrazovany nazev projektu">Name</label><input class="setting-input proj-name" value="" placeholder="my-project"></div>
+    <div class="setting-row"><label title="Absolutni cesta k projektu na disku">Path</label><input class="setting-input proj-path" value="" placeholder="/workspace/my-project"></div>
+    <div class="setting-row"><label title="Sestavovaci nastroj projektu">Build Tool</label>
+      <select class="setting-select proj-build"><option value="">-</option><option value="gradle">gradle</option><option value="maven">maven</option><option value="npm">npm</option></select>
+    </div>
+    <div class="setting-row"><label title="CI/CD platforma tohoto projektu">CI/CD</label>
+      <select class="setting-select proj-cicd"><option value="">-</option><option value="azdo">azdo</option><option value="gitlab">gitlab</option><option value="github">github</option></select>
+    </div>`;
+  c.appendChild(div);
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// --- Load Settings (full) ---
+async function loadSettings() {
+  try {
+    const cfg = await fetch(API + '/api/v1/config').then(r=>r.json()).catch(()=>({}));
+
+    // General
+    setVal('s-gen-name', cfg.general?.name);
+    setVal('s-gen-email', cfg.general?.email);
+    setVal('s-gen-loglevel', cfg.general?.log_level || 'info');
+    setVal('s-gen-language', cfg.general?.language || 'cs');
+    setVal('s-gen-datadir', cfg.general?.data_dir);
+
+    // Gateway
+    setVal('s-gw-host', cfg.gateway?.host);
+    setVal('s-gw-port', cfg.gateway?.port);
+    setVal('s-gw-webuiport', cfg.gateway?.webui_port);
+    setCheck('s-gw-tls', cfg.gateway?.tls);
+    setVal('s-gw-certfile', cfg.gateway?.cert_file);
+    setVal('s-gw-keyfile', cfg.gateway?.key_file);
+
+    // CA
+    setVal('s-ca-lifetime', cfg.ca?.cert_lifetime);
+    setVal('s-ca-renewthresh', cfg.ca?.auto_renew_threshold);
+    setVal('s-ca-algo', cfg.ca?.algo);
+    setVal('s-ca-devlifetime', cfg.ca?.device_cert_lifetime);
+    setVal('s-ca-maxdevices', cfg.ca?.max_devices_per_user);
+    setVal('s-ca-permmode', cfg.ca?.permissions_mode);
+    setVal('s-ca-devtools', (cfg.ca?.allowed_device_tools || []).join(', '));
+
+    // AI
+    renderAIProviders(cfg.ai?.providers || []);
+    renderAIPolicies(cfg.ai?.policies || []);
+
+    // Sandbox
+    setCheck('s-sb-enabled', cfg.sandbox?.enabled);
+    setVal('s-sb-socket', cfg.sandbox?.docker_socket);
+    setVal('s-sb-netmode', cfg.sandbox?.network_mode);
+    setVal('s-sb-cpu', cfg.sandbox?.cpu);
+    setVal('s-sb-memory', cfg.sandbox?.memory);
+    setVal('s-sb-timeout', cfg.sandbox?.timeout);
+
+    // Audit
+    setCheck('s-aud-enabled', cfg.audit?.enabled);
+    setVal('s-aud-dbpath', cfg.audit?.db_path);
+    setVal('s-aud-retaindays', cfg.audit?.retain_days);
+
+    // Notifications
+    renderNotifyChannelsEditable(cfg.notify?.channels || []);
+    setCheck('s-nev-pipeline', cfg.notify?.events?.pipeline_failures);
+    setCheck('s-nev-pr', cfg.notify?.events?.pr_assigned);
+    setCheck('s-nev-commits', cfg.notify?.events?.all_commits);
+    setCheck('s-nev-autofix', cfg.notify?.events?.autofix_completed);
+    setVal('s-nd-mode', cfg.notify?.morning_digest?.mode || 'on_demand');
+    setVal('s-nd-time', cfg.notify?.morning_digest?.time || '07:00');
+    setCheck('s-qh-enabled', cfg.notify?.quiet_hours?.enabled);
+    setVal('s-qh-start', cfg.notify?.quiet_hours?.start || '22:00');
+    setVal('s-qh-end', cfg.notify?.quiet_hours?.end || '07:00');
+
+    // Auto-fix
+    setVal('s-af-default', cfg.autofix?.default_policy || 'notify_only');
+    setVal('s-af-max', cfg.autofix?.max_auto_fixes || 3);
+    setVal('s-af-escalate', cfg.autofix?.escalate_after || '30m');
+    renderRepoPolicies(cfg.autofix?.repo_policies || []);
+
+    // CI/CD
+    setVal('s-cicd-adoorg', cfg.cicd?.azure_devops?.organization);
+    setSecret('s-cicd-adopat', cfg.cicd?.azure_devops?.pat_token);
+    setVal('s-cicd-glurl', cfg.cicd?.gitlab?.url);
+    setSecret('s-cicd-gltoken', cfg.cicd?.gitlab?.token);
+    setSecret('s-cicd-ghtoken', cfg.cicd?.github?.token);
+
+    // Index
+    setCheck('s-idx-enabled', cfg.index?.enabled);
+    setCheck('s-idx-bg', cfg.index?.background_watch);
+    setVal('s-idx-embedding', cfg.index?.embedding_model);
+
+    // Index stats (read-only)
+    fetch(API + '/api/v1/index/stats').then(r=>r.json()).then(stats => {
+      document.getElementById('s-index-files').textContent = stats.total_files || '0';
+      document.getElementById('s-index-classes').textContent = stats.total_classes || '0';
+    }).catch(() => {
+      document.getElementById('s-index-files').textContent = '-';
+      document.getElementById('s-index-classes').textContent = '-';
+    });
+
+    // Projects
+    renderProjectsList(cfg.projects || []);
+
+    // Workspace paths
+    loadWorkspacePaths();
+
+    // Model list in settings (compact, latest per family only)
+    const models = await fetch(API + '/api/v1/models').then(r=>r.json()).catch(()=>({models:[]}));
+    const ml = document.getElementById('model-list');
+    ml.innerHTML = '';
+    const filteredModels = filterLatestModels(models.models || []);
+    filteredModels.forEach(m => {
+      const isActive = m.active || m.id === currentModel;
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:8px 14px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:all .15s;display:flex;align-items:center;justify-content:space-between;'
+        + (isActive ? 'background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);' : 'background:var(--bg);border:1px solid var(--border);');
+      const nameStyle = isActive
+        ? 'color:var(--green);font-weight:700;font-size:14px'
+        : (m.status !== 'ready' ? 'color:var(--text2);font-size:14px' : 'color:var(--text);font-size:14px');
+      const badge = isActive ? '<span style="font-size:11px;color:var(--green);font-weight:600;background:rgba(63,185,80,.15);padding:2px 8px;border-radius:4px">ACTIVE</span>'
+        : (m.status !== 'ready' ? '<span style="font-size:11px;color:var(--red)">' + m.status + '</span>' : '');
+      div.innerHTML = '<span style="' + nameStyle + '">' + m.id + '</span>' + badge;
+      div.onmouseenter = () => { if (!isActive) div.style.borderColor = 'var(--accent)'; };
+      div.onmouseleave = () => { if (!isActive) div.style.borderColor = 'var(--border)'; };
+      div.onclick = () => {
+        switchModel(m.id);
+        setTimeout(() => { loadModels(); loadSettings(); }, 300);
+      };
+      ml.appendChild(div);
+    });
+
+    // Watcher status (read-only)
+    fetch(API + '/api/v1/watcher/status').then(r=>r.json()).then(status => {
+      document.getElementById('s-watcher-status').innerHTML = status.running
+        ? '<span style="color:var(--green)">Running</span> (seen ' + (status.seen_failures||0) + ' failures)'
+        : '<span style="color:var(--text2)">Stopped</span>';
+    }).catch(() => {
+      document.getElementById('s-watcher-status').textContent = '-';
+    });
+  } catch (e) { console.error('loadSettings error:', e); }
+}
+
+async function triggerDigest() {
+  const status = document.getElementById('digest-status');
+  status.textContent = 'Collecting...';
+  status.style.color = 'var(--yellow)';
+  try {
+    const resp = await fetch(API + '/api/v1/digest', {method:'POST'});
+    const data = await resp.json();
+    if (data.error) {
+      status.textContent = 'Error: ' + data.error;
+      status.style.color = 'var(--red)';
+    } else {
+      status.textContent = 'Digest sent! (' + (data.projects || 0) + ' projects)';
+      status.style.color = 'var(--green)';
+    }
+  } catch(e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+}
+
+async function triggerReindex() {
+  const status = document.getElementById('reindex-status');
+  status.textContent = 'Reindexing...';
+  status.style.color = 'var(--yellow)';
+  try {
+    const resp = await fetch(API + '/api/v1/index/reindex', {method:'POST'});
+    const data = await resp.json();
+    if (data.error) {
+      status.textContent = 'Error: ' + data.error;
+      status.style.color = 'var(--red)';
+    } else {
+      status.textContent = 'Done! ' + (data.files_indexed || 0) + ' files indexed';
+      status.style.color = 'var(--green)';
+      setTimeout(loadSettings, 1000);
+    }
+  } catch(e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+}
+
+// --- Init ---
+window.addEventListener('load', async () => {
+  // Restore persisted workspaces before anything else
+  const savedWS = getSavedWorkspaces();
+  if (savedWS && savedWS.length > 0) {
+    try {
+      await fetch(API + '/api/v1/workspace', {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({paths: savedWS})
+      });
+    } catch(e) {}
+  }
+
+  loadModels();
+  loadSessions();
+  connectWS();
+  document.getElementById('input').focus();
+
+  // Welcome message
+  addMessage('system', 'Welcome to GreenForge. Type a message or use /help for commands.');
+});
+</script>
+</body>
+</html>

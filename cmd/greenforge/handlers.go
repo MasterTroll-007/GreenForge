@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/greencode/greenforge/internal/agent"
 	"github.com/greencode/greenforge/internal/audit"
@@ -31,12 +32,87 @@ func loadConfig() *config.Config {
 	return cfg
 }
 
+func scanWorkspaceProjects(paths []string) []string {
+	var projects []string
+	seen := map[string]bool{}
+	for _, wsPath := range paths {
+		entries, err := os.ReadDir(wsPath)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || entry.Name()[0] == '.' {
+				continue
+			}
+			fullPath := filepath.Join(wsPath, entry.Name())
+			gitDir := filepath.Join(fullPath, ".git")
+			if _, err := os.Stat(gitDir); err == nil && !seen[entry.Name()] {
+				seen[entry.Name()] = true
+				projects = append(projects, fullPath)
+			}
+		}
+	}
+	return projects
+}
+
+func cliProjectPicker(workspacePaths []string) []string {
+	projects := scanWorkspaceProjects(workspacePaths)
+	if len(projects) == 0 {
+		return nil
+	}
+
+	fmt.Println("\n  Available repositories:")
+	fmt.Println("  " + strings.Repeat("─", 50))
+	for i, p := range projects {
+		fmt.Printf("  [%d] %s\n", i+1, filepath.Base(p))
+	}
+	fmt.Println("  " + strings.Repeat("─", 50))
+	fmt.Println("  Enter numbers separated by commas (e.g. 1,3,5)")
+	fmt.Println("  Press Enter for all, or 0 for none.")
+	fmt.Print("\n  Select repos: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	line = strings.TrimSpace(line)
+
+	if line == "" {
+		// All repos
+		return projects
+	}
+	if line == "0" {
+		return nil
+	}
+
+	var selected []string
+	for _, part := range strings.Split(line, ",") {
+		part = strings.TrimSpace(part)
+		var idx int
+		if _, err := fmt.Sscanf(part, "%d", &idx); err == nil && idx >= 1 && idx <= len(projects) {
+			selected = append(selected, projects[idx-1])
+		}
+	}
+	return selected
+}
+
 func runSession(project, modelOverride string) error {
 	cfg := loadConfig()
 
+	// If no project specified, show project picker
+	var selectedProjects []string
 	if project == "" {
-		cwd, _ := os.Getwd()
-		project = cwd
+		workspacePaths := cfg.General.WorkspacePaths
+		if len(workspacePaths) == 0 {
+			workspacePaths = []string{"/workspace"} // Docker default
+		}
+		selectedProjects = cliProjectPicker(workspacePaths)
+		if len(selectedProjects) > 0 {
+			project = selectedProjects[0]
+		} else {
+			cwd, _ := os.Getwd()
+			project = cwd
+		}
+	} else {
+		selectedProjects = []string{project}
 	}
 
 	// Initialize components
@@ -64,22 +140,34 @@ func runSession(project, modelOverride string) error {
 		},
 	})
 
-	// Try to load index stats
+	// Apply model override from --model flag
 	projectName := filepath.Base(project)
 	modelName := cfg.AI.DefaultModel
 	if modelOverride != "" {
 		modelName = modelOverride
+		router.SetDefaultModel(modelOverride)
 	}
 
-	fmt.Printf("\n\033[32m🟢 GreenForge %s\033[0m │ Project: %s │ Model: %s\n", version, projectName, modelName)
+	if len(selectedProjects) > 1 {
+		names := make([]string, len(selectedProjects))
+		for i, p := range selectedProjects {
+			names[i] = filepath.Base(p)
+		}
+		fmt.Printf("\n\033[32m🟢 GreenForge %s\033[0m │ Projects: %s │ Model: %s\n", version, strings.Join(names, ", "), modelName)
+	} else {
+		fmt.Printf("\n\033[32m🟢 GreenForge %s\033[0m │ Project: %s │ Model: %s\n", version, projectName, modelName)
+	}
 
 	// Show index status if available
-	indexDB := filepath.Join(config.GreenForgeHome(), "index", projectName+".db")
-	if idx, err := index.NewEngine(indexDB); err == nil {
-		if stats, err := idx.GetStats(); err == nil && stats.Files > 0 {
-			fmt.Printf("   Index: %d files │ %d beans │ %d endpoints\n", stats.Files, stats.SpringBeans, stats.Endpoints)
+	for _, sp := range selectedProjects {
+		pName := filepath.Base(sp)
+		indexDB := filepath.Join(config.GreenForgeHome(), "index", pName+".db")
+		if idx, err := index.NewEngine(indexDB); err == nil {
+			if stats, err := idx.GetStats(); err == nil && stats.Files > 0 {
+				fmt.Printf("   Index [%s]: %d files │ %d beans │ %d endpoints\n", pName, stats.Files, stats.SpringBeans, stats.Endpoints)
+			}
+			idx.Close()
 		}
-		idx.Close()
 	}
 	fmt.Println(strings.Repeat("━", 60))
 	fmt.Println()
@@ -102,15 +190,24 @@ func runSession(project, modelOverride string) error {
 			continue
 		}
 
-		switch input {
-		case "exit", "quit", "/exit", "/quit":
+		switch {
+		case input == "exit" || input == "quit" || input == "/exit" || input == "/quit":
 			fmt.Println("Session ended.")
 			return nil
-		case "/help":
+		case input == "/help":
 			printHelp()
 			continue
-		case "/digest":
+		case input == "/digest":
 			return runDigest()
+		case input == "/model" || input == "/models":
+			printModels(router)
+			continue
+		case strings.HasPrefix(input, "/model "):
+			newModel := strings.TrimSpace(strings.TrimPrefix(input, "/model "))
+			if err := switchModel(router, newModel); err != nil {
+				fmt.Printf("\033[31mError: %v\033[0m\n", err)
+			}
+			continue
 		}
 
 		if err := runtime.ProcessMessage(ctx, "cli-session", input); err != nil {
@@ -123,7 +220,7 @@ func runSession(project, modelOverride string) error {
 }
 
 func runQuery(question, project string) error {
-	cfg := loadConfig()
+	_ = loadConfig()
 	if project == "" {
 		cwd, _ := os.Getwd()
 		project = filepath.Base(cwd)
@@ -190,6 +287,67 @@ func runQuery(question, project string) error {
 			fmt.Printf("     Annotations: %s\n", r.Annotations)
 		}
 		fmt.Println()
+	}
+
+	return nil
+}
+
+func runIndex(projectPath string, incremental bool) error {
+	// Resolve absolute path
+	absPath, err := filepath.Abs(projectPath)
+	if err != nil {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+
+	projectName := filepath.Base(absPath)
+	indexDB := filepath.Join(config.GreenForgeHome(), "index", projectName+".db")
+
+	// Ensure index directory exists
+	os.MkdirAll(filepath.Dir(indexDB), 0700)
+
+	idx, err := index.NewEngine(indexDB)
+	if err != nil {
+		return fmt.Errorf("opening index: %w", err)
+	}
+	defer idx.Close()
+
+	fmt.Printf("Indexing project: %s\n", absPath)
+	fmt.Printf("Index database:   %s\n", indexDB)
+	fmt.Println()
+
+	ctx := context.Background()
+
+	var stats *index.IndexStats
+	if incremental {
+		fmt.Println("Mode: incremental (git diff)")
+		stats, err = idx.IncrementalUpdate(ctx, absPath)
+	} else {
+		fmt.Println("Mode: full reindex")
+		stats, err = idx.IndexProject(ctx, absPath)
+	}
+
+	if err != nil {
+		return fmt.Errorf("indexing failed: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("Indexed in %v:\n", stats.Duration.Round(time.Millisecond))
+	fmt.Printf("  Java files:   %d\n", stats.JavaFiles)
+	fmt.Printf("  Kotlin files: %d\n", stats.KotlinFiles)
+	fmt.Printf("  Build files:  %d\n", stats.BuildFiles)
+	fmt.Printf("  Config files: %d\n", stats.ConfigFiles)
+	fmt.Printf("  Build tool:   %s\n", stats.BuildTool)
+
+	// Show summary
+	status, _ := idx.GetStats()
+	if status != nil {
+		fmt.Println()
+		fmt.Printf("Index totals:\n")
+		fmt.Printf("  Classes:      %d\n", status.Classes)
+		fmt.Printf("  Endpoints:    %d\n", status.Endpoints)
+		fmt.Printf("  Kafka topics: %d\n", status.KafkaTopics)
+		fmt.Printf("  Spring beans: %d\n", status.SpringBeans)
+		fmt.Printf("  JPA entities: %d\n", status.Entities)
 	}
 
 	return nil
@@ -460,13 +618,93 @@ func runInitWizard() error {
 	return nil
 }
 
-func printHelp() {
-	fmt.Println("Commands:")
-	fmt.Println("  /help     Show this help")
-	fmt.Println("  /digest   Show morning digest")
-	fmt.Println("  /exit     End session")
+func printModels(router *model.Router) {
+	models := router.ListModels()
+	current := router.GetDefaultModel()
+
 	fmt.Println()
-	fmt.Println("You can ask anything about your codebase in natural language.")
+	fmt.Println("  Available models:")
+	fmt.Println("  " + strings.Repeat("─", 56))
+
+	for i, m := range models {
+		marker := "  "
+		if m.Active || m.ID == current {
+			marker = "▸ "
+		}
+		status := "\033[32m●\033[0m"
+		if m.Status != "ready" {
+			status = "\033[31m○\033[0m"
+		}
+
+		fmt.Printf("  %s%s %d) %s\n", marker, status, i+1, m.ID)
+	}
+
+	fmt.Println("  " + strings.Repeat("─", 56))
+	fmt.Println("  Switch: /model <number>  or  /model provider/name")
+	fmt.Println()
+}
+
+func switchModel(router *model.Router, input string) error {
+	models := router.ListModels()
+
+	// Try as number first
+	var idx int
+	if _, err := fmt.Sscanf(input, "%d", &idx); err == nil {
+		if idx < 1 || idx > len(models) {
+			return fmt.Errorf("invalid model number %d (1-%d)", idx, len(models))
+		}
+		selected := models[idx-1]
+		if selected.Status != "ready" {
+			return fmt.Errorf("model %s is %s", selected.ID, selected.Status)
+		}
+		if err := router.SetDefaultModel(selected.ID); err != nil {
+			return err
+		}
+		fmt.Printf("\033[32m✓ Model switched to: %s\033[0m\n", selected.ID)
+		return nil
+	}
+
+	// Try as model ID (e.g. "anthropic/claude-opus-4-20250514")
+	if err := router.SetDefaultModel(input); err != nil {
+		return err
+	}
+	fmt.Printf("\033[32m✓ Model switched to: %s\033[0m\n", input)
+	return nil
+}
+
+func printHelp() {
+	fmt.Println()
+	fmt.Println("  Commands:")
+	fmt.Println("  " + strings.Repeat("─", 40))
+	fmt.Println("  /help           Show this help")
+	fmt.Println("  /model          List available models")
+	fmt.Println("  /model <n>      Switch to model by number")
+	fmt.Println("  /model <id>     Switch to model by ID")
+	fmt.Println("  /digest         Show morning digest")
+	fmt.Println("  /exit           End session")
+	fmt.Println()
+	fmt.Println("  You can ask anything about your codebase")
+	fmt.Println("  in natural language.")
+	fmt.Println()
+}
+
+func runServe() error {
+	cfg := loadConfig()
+
+	fmt.Println()
+	fmt.Printf("  🟢 GreenForge %s - Gateway Server\n", version)
+	fmt.Println(strings.Repeat("━", 50))
+	fmt.Printf("  Gateway:  %s:%d\n", cfg.Gateway.Host, cfg.Gateway.Port)
+	fmt.Printf("  Web UI:   :%d\n", cfg.Gateway.WebUIPort)
+	fmt.Printf("  Model:    %s\n", cfg.AI.DefaultModel)
+	fmt.Println(strings.Repeat("━", 50))
+	fmt.Println()
+	fmt.Println("  Server is running. Press Ctrl+C to stop.")
+	fmt.Println()
+
+	// Start gateway (blocks until signal)
+	StartGateway(cfg)
+	return nil
 }
 
 // StartGateway starts the background gateway server.
@@ -478,8 +716,16 @@ func StartGateway(cfg *config.Config) {
 		return
 	}
 
+	// Create model router for AI completions
+	router := model.NewRouter(cfg)
+
 	server := gateway.NewServer(cfg, rbacEngine, auditor)
+	server.SetRouter(router)
 	_ = tools.NewRegistry(nil, nil, auditor) // Register tools
+
+	// Set up Web UI with embedded static files and AI router
+	webUI := gateway.NewWebUIServer(server, router, webFS)
+	server.SetWebUI(webUI)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

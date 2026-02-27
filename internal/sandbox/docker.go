@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/google/uuid"
@@ -204,10 +205,10 @@ func (e *Engine) Available() bool {
 }
 
 // PullImage ensures a tool image is available.
-func (e *Engine) PullImage(ctx context.Context, image string) error {
-	reader, err := e.client.ImagePull(ctx, image, nil)
+func (e *Engine) PullImage(ctx context.Context, ref string) error {
+	reader, err := e.client.ImagePull(ctx, ref, image.PullOptions{})
 	if err != nil {
-		return fmt.Errorf("pulling image %s: %w", image, err)
+		return fmt.Errorf("pulling image %s: %w", ref, err)
 	}
 	if reader != nil {
 		defer reader.Close()

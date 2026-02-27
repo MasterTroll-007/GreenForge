@@ -1,18 +1,34 @@
 package main
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/greencode/greenforge/internal/config"
 	"github.com/spf13/cobra"
 )
 
+//go:embed web
+var embeddedWeb embed.FS
+
+// webFS is the filesystem for the web UI, extracted from embed.
+var webFS fs.FS
+
 var (
 	version = "0.1.0-dev"
 	commit  = "unknown"
 	date    = "unknown"
 )
+
+func init() {
+	var err error
+	webFS, err = fs.Sub(embeddedWeb, "web")
+	if err != nil {
+		webFS = nil
+	}
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -33,7 +49,9 @@ a pomáhá z terminálu i z mobilu.`,
 	rootCmd.AddCommand(
 		newInitCmd(),
 		newRunCmd(),
+		newServeCmd(),
 		newQueryCmd(),
+		newIndexCmd(),
 		newAuthCmd(),
 		newSessionCmd(),
 		newAuditCmd(),
@@ -88,6 +106,26 @@ func newQueryCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP("project", "p", "", "project to query")
+	return cmd
+}
+
+// newIndexCmd creates the `greenforge index` command - indexes project codebase
+func newIndexCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "index [project-path]",
+		Short: "Index a project codebase for AI context",
+		Long:  "Indexuje Java/Kotlin projekt - třídy, Spring beany, endpointy, Kafka topiky, JPA entity. Data se uloží do SQLite a AI agent je pak může využívat.",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectPath := "."
+			if len(args) > 0 {
+				projectPath = args[0]
+			}
+			incremental, _ := cmd.Flags().GetBool("incremental")
+			return runIndex(projectPath, incremental)
+		},
+	}
+	cmd.Flags().BoolP("incremental", "i", false, "only re-index changed files (git diff)")
 	return cmd
 }
 
@@ -273,6 +311,19 @@ func newConfigCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(editCmd, showCmd)
+	return cmd
+}
+
+// newServeCmd creates the `greenforge serve` command - runs gateway server (for Docker)
+func newServeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Start GreenForge gateway server (used in Docker)",
+		Long:  "Spustí gateway server na pozadí a čeká. Určeno pro běh v Docker kontejneru.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServe()
+		},
+	}
 	return cmd
 }
 

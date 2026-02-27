@@ -24,7 +24,12 @@ services:
       # Docker socket for sandbox tool execution
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount workspace projects (read-only by default)
-      - ${GF_WORKSPACE:-./workspace}:/workspace:ro
+      # Each Windows path gets its own mount: C:/GC → /mnt/GC, C:/PROJECTS → /mnt/PROJECTS
+      - ${GF_WORKSPACE:-/c/GC}:/mnt/GC:ro
+      - ${GF_WORKSPACE2:-/c/PROJECTS}:/mnt/PROJECTS:ro
+      # Claude Code OAuth credentials (for subscription users)
+      - ${USERPROFILE:-.}/.claude/accounts:/home/greenforge/.claude/accounts:ro
+      - ${USERPROFILE:-.}/.claude/current-account.txt:/home/greenforge/.claude/current-account.txt:ro
       # Optional: Mount .gradle/.m2 caches for faster builds
       - ${GRADLE_USER_HOME:-~/.gradle}:/home/greenforge/.gradle:ro
       - ${M2_HOME:-~/.m2}:/home/greenforge/.m2:ro
@@ -33,6 +38,10 @@ services:
       - GF_GATEWAY_HOST=0.0.0.0
       - GF_GATEWAY_PORT=18788
       - GF_WEBUI_PORT=18789
+      # Default AI model (anthropic uses Claude Code OAuth automatically)
+      - GF_DEFAULT_MODEL=${GF_DEFAULT_MODEL:-anthropic/claude-sonnet-4-6}
+      # Claude Code proxy (run: node claude-proxy.mjs on host)
+      - ANTHROPIC_PROXY=${ANTHROPIC_PROXY:-http://host.docker.internal:18790}
       # Ollama connection (if running locally)
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
     networks:
@@ -44,7 +53,7 @@ services:
     # Allow access to host network for Ollama, Docker, etc.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["run", "--gateway"]
+    command: ["serve"]
 
   # Optional: Ollama for local AI (comment out if using external Ollama)
   ollama:

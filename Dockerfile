@@ -3,20 +3,22 @@
 # ============================================================
 
 # Stage 1: Build the Go binary
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git gcc musl-dev sqlite-dev
 
 WORKDIR /build
 
 # Cache dependencies
-COPY go.mod go.sum ./
-RUN go mod download
+COPY go.mod ./
+RUN go mod download || true
 
-# Copy source and build
+# Copy source, resolve deps, and build
 COPY . .
+RUN go mod tidy
 
 RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "fts5" \
     -ldflags "-s -w -X main.version=$(git describe --tags --always 2>/dev/null || echo 0.1.0-dev) \
               -X main.commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
               -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -32,6 +34,7 @@ RUN apk add --no-cache \
     git \
     docker-cli \
     sqlite \
+    sqlite-libs \
     curl \
     bash \
     tzdata
@@ -60,7 +63,7 @@ VOLUME ["/home/greenforge/.greenforge"]
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:18789/api/v1/health || exit 1
+    CMD curl -f http://localhost:18788/api/v1/health || exit 1
 
 USER greenforge
 WORKDIR /home/greenforge

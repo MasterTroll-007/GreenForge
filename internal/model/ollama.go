@@ -1,4 +1,4 @@
-package providers
+package model
 
 import (
 	"bytes"
@@ -8,11 +8,9 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	"github.com/greencode/greenforge/internal/model"
 )
 
-// OllamaProvider implements the model.Provider interface for Ollama.
+// OllamaProvider implements the Provider interface for Ollama.
 type OllamaProvider struct {
 	endpoint string
 	model    string
@@ -47,7 +45,38 @@ func (p *OllamaProvider) Available() bool {
 	return resp.StatusCode == 200
 }
 
-func (p *OllamaProvider) Complete(ctx context.Context, req model.Request) (*model.Response, error) {
+// Models returns locally available Ollama models via /api/tags.
+func (p *OllamaProvider) Models() []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", p.endpoint+"/api/tags", nil)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return []string{p.model}
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return []string{p.model}
+	}
+
+	names := make([]string, 0, len(result.Models))
+	for _, m := range result.Models {
+		names = append(names, m.Name)
+	}
+	if len(names) == 0 {
+		return []string{p.model}
+	}
+	return names
+}
+
+func (p *OllamaProvider) Complete(ctx context.Context, req Request) (*Response, error) {
 	ollamaReq := ollamaChatRequest{
 		Model:    p.resolveModel(req.Model),
 		Messages: convertMessages(req.Messages),
@@ -89,10 +118,10 @@ func (p *OllamaProvider) Complete(ctx context.Context, req model.Request) (*mode
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
-	resp := &model.Response{
+	resp := &Response{
 		Content: ollamaResp.Message.Content,
 		Model:   ollamaResp.Model,
-		Usage: model.Usage{
+		Usage: Usage{
 			InputTokens:  ollamaResp.PromptEvalCount,
 			OutputTokens: ollamaResp.EvalCount,
 		},
@@ -101,7 +130,7 @@ func (p *OllamaProvider) Complete(ctx context.Context, req model.Request) (*mode
 	// Convert tool calls
 	if len(ollamaResp.Message.ToolCalls) > 0 {
 		for i, tc := range ollamaResp.Message.ToolCalls {
-			resp.ToolCalls = append(resp.ToolCalls, model.ToolCall{
+			resp.ToolCalls = append(resp.ToolCalls, ToolCall{
 				ID:    fmt.Sprintf("call_%d", i),
 				Name:  tc.Function.Name,
 				Input: tc.Function.Arguments,
@@ -112,7 +141,7 @@ func (p *OllamaProvider) Complete(ctx context.Context, req model.Request) (*mode
 	return resp, nil
 }
 
-func (p *OllamaProvider) StreamComplete(ctx context.Context, req model.Request, cb model.StreamCallback) error {
+func (p *OllamaProvider) StreamComplete(ctx context.Context, req Request, cb StreamCallback) error {
 	ollamaReq := ollamaChatRequest{
 		Model:    p.resolveModel(req.Model),
 		Messages: convertMessages(req.Messages),
@@ -150,7 +179,7 @@ func (p *OllamaProvider) StreamComplete(ctx context.Context, req model.Request, 
 			return err
 		}
 
-		cb(model.StreamChunk{
+		cb(StreamChunk{
 			Content: chunk.Message.Content,
 			Done:    chunk.Done,
 		})
@@ -181,9 +210,9 @@ type ollamaChatRequest struct {
 }
 
 type ollamaMessage struct {
-	Role      string              `json:"role"`
-	Content   string              `json:"content"`
-	ToolCalls []ollamaToolCall    `json:"tool_calls,omitempty"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
 }
 
 type ollamaToolCall struct {
@@ -219,7 +248,7 @@ type ollamaChatResponse struct {
 	EvalCount       int           `json:"eval_count"`
 }
 
-func convertMessages(msgs []model.Message) []ollamaMessage {
+func convertMessages(msgs []Message) []ollamaMessage {
 	result := make([]ollamaMessage, len(msgs))
 	for i, msg := range msgs {
 		result[i] = ollamaMessage{
@@ -230,7 +259,7 @@ func convertMessages(msgs []model.Message) []ollamaMessage {
 	return result
 }
 
-func convertTools(tools []model.ToolDef) []ollamaTool {
+func convertTools(tools []ToolDef) []ollamaTool {
 	result := make([]ollamaTool, len(tools))
 	for i, tool := range tools {
 		result[i] = ollamaTool{

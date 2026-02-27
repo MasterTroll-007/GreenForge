@@ -391,6 +391,172 @@ func (e *Engine) GetStats() (*IndexStatus, error) {
 	return status, nil
 }
 
+// GetContextSummary returns a text summary of the indexed project for AI context injection.
+func (e *Engine) GetContextSummary(projectName string) string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("## Codebase Index: %s\n\n", projectName))
+
+	// Stats
+	stats, _ := e.GetStats()
+	if stats != nil && stats.Files > 0 {
+		sb.WriteString(fmt.Sprintf("Files: %d | Classes: %d | Methods: %d | Endpoints: %d | Kafka topics: %d | Spring beans: %d | Entities: %d\n",
+			stats.Files, stats.Classes, stats.Methods, stats.Endpoints, stats.KafkaTopics, stats.SpringBeans, stats.Entities))
+		if stats.LastUpdate != nil {
+			sb.WriteString(fmt.Sprintf("Last indexed: %s\n", stats.LastUpdate.Format("2006-01-02 15:04")))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Modules
+	rows, err := e.db.Query("SELECT DISTINCT module FROM files WHERE module != '' ORDER BY module LIMIT 30")
+	if err == nil {
+		var modules []string
+		for rows.Next() {
+			var m string
+			rows.Scan(&m)
+			modules = append(modules, m)
+		}
+		rows.Close()
+		if len(modules) > 0 {
+			sb.WriteString("### Modules\n")
+			sb.WriteString(strings.Join(modules, ", ") + "\n\n")
+		}
+	}
+
+	// REST Endpoints (limit 30)
+	epRows, err := e.db.Query("SELECT method, path, handler, file FROM endpoints ORDER BY path LIMIT 30")
+	if err == nil {
+		var eps []string
+		for epRows.Next() {
+			var method, path, handler, file string
+			epRows.Scan(&method, &path, &handler, &file)
+			eps = append(eps, fmt.Sprintf("  %s %s -> %s (%s)", method, path, handler, file))
+		}
+		epRows.Close()
+		if len(eps) > 0 {
+			sb.WriteString("### REST Endpoints\n")
+			sb.WriteString(strings.Join(eps, "\n") + "\n\n")
+		}
+	}
+
+	// Kafka Topics
+	ktRows, err := e.db.Query("SELECT topic, group_id, type, handler FROM kafka_topics ORDER BY topic LIMIT 20")
+	if err == nil {
+		var kts []string
+		for ktRows.Next() {
+			var topic, groupID, typ, handler string
+			ktRows.Scan(&topic, &groupID, &typ, &handler)
+			kts = append(kts, fmt.Sprintf("  %s [%s] group=%s -> %s", topic, typ, groupID, handler))
+		}
+		ktRows.Close()
+		if len(kts) > 0 {
+			sb.WriteString("### Kafka Topics\n")
+			sb.WriteString(strings.Join(kts, "\n") + "\n\n")
+		}
+	}
+
+	// Spring Beans (grouped by type)
+	for _, beanType := range []string{"service", "repository", "controller", "component", "configuration"} {
+		bRows, err := e.db.Query("SELECT class_name, module FROM spring_beans WHERE type = ? ORDER BY class_name LIMIT 20", beanType)
+		if err == nil {
+			var beans []string
+			for bRows.Next() {
+				var name, mod string
+				bRows.Scan(&name, &mod)
+				if mod != "" {
+					beans = append(beans, fmt.Sprintf("%s (%s)", name, mod))
+				} else {
+					beans = append(beans, name)
+				}
+			}
+			bRows.Close()
+			if len(beans) > 0 {
+				title := strings.ToUpper(beanType[:1]) + beanType[1:]
+			sb.WriteString(fmt.Sprintf("### Spring %ss\n", title))
+				sb.WriteString(strings.Join(beans, ", ") + "\n\n")
+			}
+		}
+	}
+
+	// JPA Entities
+	entRows, err := e.db.Query("SELECT name, table_name FROM entities ORDER BY name LIMIT 20")
+	if err == nil {
+		var ents []string
+		for entRows.Next() {
+			var name, tableName string
+			entRows.Scan(&name, &tableName)
+			if tableName != "" {
+				ents = append(ents, fmt.Sprintf("%s (table: %s)", name, tableName))
+			} else {
+				ents = append(ents, name)
+			}
+		}
+		entRows.Close()
+		if len(ents) > 0 {
+			sb.WriteString("### JPA Entities\n")
+			sb.WriteString(strings.Join(ents, ", ") + "\n\n")
+		}
+	}
+
+	// Key classes (top 30)
+	clRows, err := e.db.Query("SELECT name, package, kind, annotations, module FROM classes ORDER BY name LIMIT 30")
+	if err == nil {
+		var cls []string
+		for clRows.Next() {
+			var name, pkg, kind, anns, mod string
+			clRows.Scan(&name, &pkg, &kind, &anns, &mod)
+			entry := fmt.Sprintf("%s.%s [%s]", pkg, name, kind)
+			if anns != "" {
+				entry += " " + anns
+			}
+			cls = append(cls, entry)
+		}
+		clRows.Close()
+		if len(cls) > 0 {
+			sb.WriteString("### Key Classes\n")
+			for _, c := range cls {
+				sb.WriteString("  " + c + "\n")
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
+}
+
+// ListSpringBeans returns all indexed Spring beans.
+func (e *Engine) ListSpringBeans(beanType string) ([]SpringBean, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	query := "SELECT name, type, class_name, file, module FROM spring_beans"
+	var args []interface{}
+	if beanType != "" && beanType != "all" {
+		query += " WHERE type = ?"
+		args = append(args, beanType)
+	}
+	query += " ORDER BY type, class_name"
+
+	rows, err := e.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var beans []SpringBean
+	for rows.Next() {
+		var b SpringBean
+		if err := rows.Scan(&b.Name, &b.Type, &b.ClassName, &b.File, &b.Module); err != nil {
+			continue
+		}
+		beans = append(beans, b)
+	}
+	return beans, rows.Err()
+}
+
 // Close releases resources.
 func (e *Engine) Close() error {
 	return e.db.Close()
