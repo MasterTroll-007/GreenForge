@@ -1,0 +1,79 @@
+# ============================================================
+# GreenForge - Docker Compose (One-Click Setup)
+# ============================================================
+# Usage:
+#   docker compose up -d          # Start GreenForge
+#   docker compose exec gf greenforge init   # Run setup wizard
+#   docker compose logs -f gf     # View logs
+#   docker compose down           # Stop
+
+services:
+  # Main GreenForge service
+  gf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: greenforge
+    restart: unless-stopped
+    ports:
+      - "18788:18788"   # Gateway (WS/gRPC)
+      - "18789:18789"   # Web UI
+    volumes:
+      # Persistent GreenForge data (certs, index, config, audit)
+      - gf-data:/home/greenforge/.greenforge
+      # Docker socket for sandbox tool execution
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount workspace projects (read-only by default)
+      - ${GF_WORKSPACE:-./workspace}:/workspace:ro
+      # Optional: Mount .gradle/.m2 caches for faster builds
+      - ${GRADLE_USER_HOME:-~/.gradle}:/home/greenforge/.gradle:ro
+      - ${M2_HOME:-~/.m2}:/home/greenforge/.m2:ro
+    environment:
+      - GREENFORGE_HOME=/home/greenforge/.greenforge
+      - GF_GATEWAY_HOST=0.0.0.0
+      - GF_GATEWAY_PORT=18788
+      - GF_WEBUI_PORT=18789
+      # Ollama connection (if running locally)
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+    networks:
+      - greenforge
+    depends_on:
+      ollama:
+        condition: service_started
+        required: false
+    # Allow access to host network for Ollama, Docker, etc.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["run", "--gateway"]
+
+  # Optional: Ollama for local AI (comment out if using external Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: greenforge-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    # GPU support (uncomment for NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    networks:
+      - greenforge
+    profiles:
+      - with-ollama
+
+volumes:
+  gf-data:
+    driver: local
+  ollama-data:
+    driver: local
+
+networks:
+  greenforge:
+    driver: bridge

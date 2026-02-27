@@ -1,0 +1,48 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: code_review
+  description: "Review code for quality, security, and JVM best practices"
+  category: analysis
+  tags: [review, quality, java, kotlin, security]
+spec:
+  functions:
+    - name: review_diff
+      description: "Review a git diff for issues and improvements"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          branch: { type: string, description: "Compare branch (default: main)" }
+        required: [path]
+
+    - name: review_file
+      description: "Review a specific file for quality and patterns"
+      parameters:
+        type: object
+        properties:
+          file: { type: string }
+          focus: { type: array, items: { enum: [security, performance, style, bugs, all] } }
+        required: [file]
+
+    - name: check_idioms
+      description: "Check Java/Kotlin code for idiomatic patterns"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          language: { enum: [java, kotlin, auto] }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-review:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace, readOnly: true }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "512m"
+      timeoutSeconds: 60
+  permissions: ["analysis:review"]

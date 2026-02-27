@@ -1,0 +1,31 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: shell
+  description: "Execute shell commands in a sandboxed environment"
+  category: system
+  tags: [shell, bash, command]
+spec:
+  functions:
+    - name: shell_exec
+      description: "Execute a shell command"
+      parameters:
+        type: object
+        properties:
+          command: { type: string, description: "Command to execute" }
+          path: { type: string, description: "Working directory" }
+          timeout: { type: integer, default: 60, description: "Timeout in seconds" }
+        required: [command]
+
+  sandbox:
+    image: greenforge-tool-shell:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace }
+    resources:
+      cpuLimit: "2.0"
+      memoryLimit: "1024m"
+      timeoutSeconds: 300
+  permissions: ["shell"]

@@ -1,0 +1,61 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: file
+  description: "File operations: read, write, search, tree"
+  category: filesystem
+  tags: [file, read, write, search, ripgrep]
+spec:
+  functions:
+    - name: file_read
+      description: "Read file contents"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          line_start: { type: integer, description: "Start line (1-based)" }
+          line_end: { type: integer, description: "End line (inclusive)" }
+        required: [path]
+
+    - name: file_write
+      description: "Write content to file"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          content: { type: string }
+        required: [path, content]
+
+    - name: file_search
+      description: "Search file contents using ripgrep"
+      parameters:
+        type: object
+        properties:
+          pattern: { type: string, description: "Regex pattern" }
+          path: { type: string, description: "Search root directory" }
+          file_pattern: { type: string, description: "File glob (e.g. '*.java')" }
+          max_results: { type: integer, default: 20 }
+        required: [pattern]
+
+    - name: file_tree
+      description: "Show directory tree"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          depth: { type: integer, default: 3 }
+          pattern: { type: string, description: "File pattern filter" }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-file:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "512m"
+      timeoutSeconds: 30
+  permissions: ["filesystem:read", "filesystem:write"]

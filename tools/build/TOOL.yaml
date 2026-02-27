@@ -1,0 +1,67 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: build
+  description: "Gradle/Maven build operations for JVM projects"
+  category: build
+  tags: [java, kotlin, gradle, maven, jvm]
+spec:
+  functions:
+    - name: build_project
+      description: "Build project (gradle build / mvn package)"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          tasks: { type: array, items: { type: string }, default: ["build"] }
+          args: { type: array, items: { type: string } }
+        required: [path]
+
+    - name: run_tests
+      description: "Run tests with optional filter"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          filter: { type: string, description: "Test class/method filter" }
+          module: { type: string, description: "Specific submodule" }
+        required: [path]
+
+    - name: list_dependencies
+      description: "Show dependency tree, detect conflicts"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          configuration: { type: string, default: "runtimeClasspath" }
+        required: [path]
+
+    - name: run_app
+      description: "Run application (bootRun / application:run)"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          profile: { type: string, description: "Spring profile" }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-build:latest
+    network:
+      mode: restricted
+      allowedHosts:
+        - "repo.maven.apache.org:443"
+        - "plugins.gradle.org:443"
+        - "dl.google.com:443"
+        - "repo1.maven.org:443"
+        - "services.gradle.org:443"
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace }
+        - { source: "${HOME}/.gradle", target: /home/agent/.gradle }
+        - { source: "${HOME}/.m2", target: /home/agent/.m2, readOnly: true }
+    resources:
+      cpuLimit: "4.0"
+      memoryLimit: "4096m"
+      timeoutSeconds: 600
+  permissions: ["build:execute", "build:read", "network:outbound:https"]

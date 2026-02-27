@@ -1,0 +1,29 @@
+# GreenForge Auto-Fix Policy
+# ============================================================
+# Defines how GreenForge handles CI/CD pipeline failures.
+# Per-repo and per-branch granularity.
+
+policies:
+  # Example: CBA Backend
+  # - repo: "cba-backend"
+  #   rules:
+  #     - branch: "master"
+  #       on_failure: notify_only
+  #       notify: [whatsapp, email]
+  #     - branch: "develop"
+  #       on_failure: fix_and_pr
+  #       pr_assignee: auto
+  #       require_review: true
+  #     - branch: "feature/*"
+  #       on_failure: fix_and_merge
+  #       require_tests_pass: true
+  #       max_auto_fixes: 3
+  #     - branch: "release/*"
+  #       on_failure: notify_only
+  #       escalate_after: "30m"
+
+  # Default for all repos
+  - repo: "*"
+    rules:
+      - branch: "*"
+        on_failure: notify_only    # Safe default

@@ -1,0 +1,51 @@
+# Build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+vendor/
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# GreenForge runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Config with secrets (template is OK)
+greenforge.toml
+!configs/greenforge.toml
+
+# Certificates (never commit)
+*.pem
+*.key
+*.cert
+*.csr
+ca/
+
+# Docker
+docker/volumes/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

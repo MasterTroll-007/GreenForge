@@ -1,0 +1,46 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: kafka_mapper
+  description: "Map Kafka event flows: topics, producers, consumers, message types"
+  category: analysis
+  tags: [kafka, events, streaming, topics]
+spec:
+  functions:
+    - name: map_topics
+      description: "List all Kafka topics with their producers and consumers"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+        required: [path]
+
+    - name: trace_event
+      description: "Trace event flow: who produces → topic → who consumes → what happens"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          topic: { type: string, description: "Kafka topic name" }
+        required: [path]
+
+    - name: list_listeners
+      description: "List all @KafkaListener methods with their topics and groups"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-kafka:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace, readOnly: true }
+    resources:
+      cpuLimit: "0.5"
+      memoryLimit: "512m"
+      timeoutSeconds: 30
+  permissions: ["analysis:kafka"]

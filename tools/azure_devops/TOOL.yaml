@@ -1,0 +1,61 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: azure_devops
+  description: "Azure DevOps integration: pipelines, PRs, work items"
+  category: cicd
+  tags: [azure, devops, pipelines, pr, work-items]
+spec:
+  functions:
+    - name: pipeline_status
+      description: "Get pipeline run status"
+      parameters:
+        type: object
+        properties:
+          project: { type: string }
+          pipeline_id: { type: integer }
+          branch: { type: string }
+        required: [project]
+
+    - name: list_prs
+      description: "List pull requests"
+      parameters:
+        type: object
+        properties:
+          project: { type: string }
+          status: { enum: [active, completed, abandoned, all], default: active }
+          reviewer: { type: string, description: "Filter by reviewer" }
+        required: [project]
+
+    - name: get_work_items
+      description: "Get work items assigned to user"
+      parameters:
+        type: object
+        properties:
+          project: { type: string }
+          assigned_to: { type: string, default: "@me" }
+          state: { type: string }
+        required: [project]
+
+    - name: trigger_pipeline
+      description: "Trigger a pipeline run"
+      parameters:
+        type: object
+        properties:
+          project: { type: string }
+          pipeline_id: { type: integer }
+          branch: { type: string, default: "main" }
+        required: [project, pipeline_id]
+
+  sandbox:
+    image: greenforge-tool-azdo:latest
+    network:
+      mode: restricted
+      allowedHosts: ["dev.azure.com:443", "*.visualstudio.com:443"]
+    filesystem:
+      mounts: []
+    resources:
+      cpuLimit: "0.5"
+      memoryLimit: "256m"
+      timeoutSeconds: 30
+  permissions: ["cicd:read", "cicd:trigger"]

@@ -1,0 +1,53 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: logs
+  description: "Log analysis: search, tail, analyze Spring Boot logs"
+  category: observability
+  tags: [logs, search, analysis, spring-boot]
+spec:
+  functions:
+    - name: log_search
+      description: "Search log files for patterns"
+      parameters:
+        type: object
+        properties:
+          path: { type: string, description: "Log file or directory" }
+          pattern: { type: string }
+          level: { enum: [ERROR, WARN, INFO, DEBUG, TRACE] }
+          since: { type: string, description: "Time filter (e.g. '1h', '2024-01-01')" }
+          limit: { type: integer, default: 50 }
+        required: [path, pattern]
+
+    - name: log_tail
+      description: "Tail log file (last N lines)"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          lines: { type: integer, default: 100 }
+          follow: { type: boolean, default: false }
+        required: [path]
+
+    - name: log_analyze
+      description: "Analyze log patterns, find errors, correlate traces"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          trace_id: { type: string, description: "Correlation/trace ID" }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-logs:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace, readOnly: true }
+        - { source: "${LOG_DIR:-/var/log}", target: /logs, readOnly: true }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "512m"
+      timeoutSeconds: 60
+  permissions: ["logs:read"]

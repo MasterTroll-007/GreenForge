@@ -1,0 +1,83 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: git
+  description: "Git version control operations"
+  category: vcs
+  tags: [git, vcs, version-control]
+spec:
+  functions:
+    - name: git_status
+      description: "Show working tree status"
+      parameters:
+        type: object
+        properties:
+          path: { type: string, description: "Repository path" }
+        required: [path]
+
+    - name: git_diff
+      description: "Show changes between commits, commit and working tree, etc."
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          staged: { type: boolean, default: false }
+          file: { type: string, description: "Specific file to diff" }
+        required: [path]
+
+    - name: git_log
+      description: "Show commit history"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          limit: { type: integer, default: 10 }
+          author: { type: string }
+          since: { type: string, description: "Date filter (e.g. '1 week ago')" }
+        required: [path]
+
+    - name: git_blame
+      description: "Show what revision and author last modified each line"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          file: { type: string }
+          lines: { type: string, description: "Line range (e.g. '10,20')" }
+        required: [path, file]
+
+    - name: git_commit
+      description: "Create a new commit"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          message: { type: string }
+          files: { type: array, items: { type: string }, description: "Files to stage" }
+        required: [path, message]
+
+    - name: git_branch
+      description: "List, create, or switch branches"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          action: { enum: [list, create, switch, delete] }
+          name: { type: string, description: "Branch name" }
+        required: [path, action]
+
+  sandbox:
+    image: greenforge-tool-git:latest
+    network:
+      mode: restricted
+      allowedHosts: ["github.com:443", "gitlab.com:443", "dev.azure.com:443"]
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace }
+        - { source: "${HOME}/.ssh", target: /home/agent/.ssh, readOnly: true }
+        - { source: "${HOME}/.gitconfig", target: /home/agent/.gitconfig, readOnly: true }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "512m"
+      timeoutSeconds: 120
+  permissions: ["vcs:read", "vcs:write"]

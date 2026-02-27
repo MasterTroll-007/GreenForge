@@ -1,0 +1,44 @@
+# GreenForge RBAC (Role-Based Access Control) Policy
+# ============================================================
+# Roles define what actions a user can perform.
+# Roles are embedded in SSH certificates as extensions.
+
+roles:
+  - name: admin
+    description: "Full access to all features"
+    permissions:
+      - "*"
+
+  - name: developer
+    description: "Standard developer access"
+    permissions:
+      - "vcs:*"          # Git operations
+      - "build:*"        # Build/test
+      - "shell"          # Shell commands
+      - "db:read"        # Database read
+      - "db:write"       # Database write
+      - "analysis:*"     # Spring/Kafka/JPA analysis
+      - "logs:read"      # Log viewing
+      - "cicd:read"      # CI/CD status
+      - "cicd:trigger"   # Trigger pipelines
+      - "notify:send"    # Send notifications
+      - "index:*"        # Codebase index
+      - "session:*"      # Session management
+
+  - name: viewer
+    description: "Read-only access"
+    permissions:
+      - "vcs:read"
+      - "logs:read"
+      - "cicd:read"
+      - "audit:read"
+      - "index:read"
+      - "session:read"
+
+  - name: ci-bot
+    description: "CI/CD automation bot"
+    permissions:
+      - "vcs:*"
+      - "build:*"
+      - "cicd:*"
+      - "notify:send"

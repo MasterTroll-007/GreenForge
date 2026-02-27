@@ -1,0 +1,50 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: database
+  description: "Database operations: query, schema, migrations (PostgreSQL, MySQL, H2)"
+  category: database
+  tags: [database, sql, postgresql, mysql, h2, liquibase, flyway]
+spec:
+  functions:
+    - name: db_query
+      description: "Execute SQL query (read-only by default)"
+      parameters:
+        type: object
+        properties:
+          connection: { type: string, description: "Connection name from config" }
+          query: { type: string }
+          read_only: { type: boolean, default: true }
+        required: [connection, query]
+
+    - name: db_schema
+      description: "Show database schema (tables, columns, indexes)"
+      parameters:
+        type: object
+        properties:
+          connection: { type: string }
+          table: { type: string, description: "Specific table or 'all'" }
+        required: [connection]
+
+    - name: db_migrations
+      description: "Show migration history and pending migrations"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          tool: { enum: [liquibase, flyway, auto] }
+        required: [path]
+
+  sandbox:
+    image: greenforge-tool-database:latest
+    network:
+      mode: restricted
+      allowedHosts: []  # Configured per-connection
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace, readOnly: true }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "512m"
+      timeoutSeconds: 30
+  permissions: ["db:read", "db:write"]

@@ -1,0 +1,58 @@
+apiVersion: greenforge.dev/v1
+kind: Tool
+metadata:
+  name: spring_analyzer
+  description: "Analyze Spring Boot context: beans, endpoints, configs, profiles"
+  category: analysis
+  tags: [spring, spring-boot, beans, endpoints, configuration]
+spec:
+  functions:
+    - name: list_endpoints
+      description: "List all REST/MVC endpoints with methods, paths, params"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          filter: { type: string, description: "Filter by path pattern" }
+        required: [path]
+
+    - name: list_beans
+      description: "List Spring beans (services, repos, components, configs)"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          type: { enum: [service, repository, component, controller, configuration, all] }
+        required: [path]
+
+    - name: analyze_config
+      description: "Analyze application.yml/properties - show all config values per profile"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          profile: { type: string, description: "Specific profile or 'all'" }
+          key: { type: string, description: "Specific config key to trace" }
+        required: [path]
+
+    - name: dependency_injection_graph
+      description: "Show bean dependency/injection graph for a specific bean"
+      parameters:
+        type: object
+        properties:
+          path: { type: string }
+          bean_name: { type: string }
+        required: [path, bean_name]
+
+  sandbox:
+    image: greenforge-tool-spring:latest
+    network:
+      mode: none
+    filesystem:
+      mounts:
+        - { source: "${WORKSPACE}", target: /workspace, readOnly: true }
+    resources:
+      cpuLimit: "1.0"
+      memoryLimit: "1024m"
+      timeoutSeconds: 60
+  permissions: ["analysis:spring"]

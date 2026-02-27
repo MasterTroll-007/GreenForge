@@ -1,0 +1,20 @@
+# GreenForge AI Model Policy
+# ============================================================
+# Controls which AI providers can be used for which projects.
+# Prevents sensitive company code from being sent to cloud AI.
+
+policies:
+  # Company projects - local AI only
+  # - project_pattern: "*/GC/*"
+  #   allowed_providers: [ollama]
+  #   reason: "Company code cannot leave network"
+
+  # Personal projects - all providers OK
+  # - project_pattern: "*/personal/*"
+  #   allowed_providers: [anthropic, openai, ollama]
+  #   reason: "Personal code OK for cloud AI"
+
+  # Default: safe (local only)
+  - project_pattern: "*"
+    allowed_providers: [ollama]
+    reason: "Default: local AI only for safety"
