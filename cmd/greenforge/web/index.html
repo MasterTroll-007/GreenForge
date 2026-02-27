@@ -388,7 +388,7 @@ main { flex:1; display:flex; overflow:hidden; }
         </div>
         <div class="settings-group" style="margin-bottom:0">
           <h4><span class="sg-icon" style="background:rgba(248,81,73,.15);color:var(--red)">PW</span> Pipeline Watcher</h4>
-          <div class="setting-row"><label>Status</label><span class="val" id="s-watcher-status">-</span></div>
+          <div class="setting-row"><label title="Aktualni stav sledovace CI/CD pipeline (Running/Stopped)">Status</label><span class="val" id="s-watcher-status">-</span></div>
           <div id="watcher-failures" style="margin-top:6px"></div>
         </div>
       </div>
@@ -1414,15 +1414,15 @@ function renderNotifyChannelsEditable(arr) {
     div.className = 'array-item';
     let conditionalFields = '';
     if (ch.type === 'email') {
-      conditionalFields = `<div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value="${esc(ch.address)}"></div>`;
+      conditionalFields = `<div class="setting-row nch-cond"><label title="Emailova adresa prijemce notifikaci">Address</label><input class="setting-input nch-address" value="${esc(ch.address)}"></div>`;
     } else if (ch.type === 'telegram') {
-      conditionalFields = `<div class="setting-row nch-cond"><label>Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${i}" value="${esc(ch.bot_token)}" data-original="${esc(ch.bot_token)}"><button onclick="toggleSecret('nch-bottoken-${i}')">show</button></div></div>
-        <div class="setting-row nch-cond"><label>Chat ID</label><input class="setting-input nch-chatid" value="${esc(ch.chat_id)}"></div>`;
+      conditionalFields = `<div class="setting-row nch-cond"><label title="Token Telegram bota ziskany od @BotFather">Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${i}" value="${esc(ch.bot_token)}" data-original="${esc(ch.bot_token)}"><button onclick="toggleSecret('nch-bottoken-${i}')">show</button></div></div>
+        <div class="setting-row nch-cond"><label title="ID Telegram chatu nebo skupiny kam se posilaji zpravy">Chat ID</label><input class="setting-input nch-chatid" value="${esc(ch.chat_id)}"></div>`;
     } else if (ch.type === 'whatsapp' || ch.type === 'sms') {
-      conditionalFields = `<div class="setting-row nch-cond"><label>Phone</label><input class="setting-input nch-phone" value="${esc(ch.phone)}"></div>`;
+      conditionalFields = `<div class="setting-row nch-cond"><label title="Telefonni cislo prijemce v mezinarodnim formatu (napr. +420123456789)">Phone</label><input class="setting-input nch-phone" value="${esc(ch.phone)}"></div>`;
     }
     div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
-      <div class="setting-row"><label>Type</label>
+      <div class="setting-row"><label title="Typ notifikacniho kanalu (email, telegram, whatsapp, sms, cli)">Type</label>
         <select class="setting-select nch-type" onchange="updateChannelFields(this)">
           <option value="email" ${ch.type==='email'?'selected':''}>email</option>
           <option value="telegram" ${ch.type==='telegram'?'selected':''}>telegram</option>
@@ -1431,7 +1431,7 @@ function renderNotifyChannelsEditable(arr) {
           <option value="cli" ${ch.type==='cli'?'selected':''}>cli</option>
         </select>
       </div>
-      <div class="setting-row"><label>Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" ${ch.enabled?'checked':''}></div></div>
+      <div class="setting-row"><label title="Zapnout nebo vypnout tento notifikacni kanal">Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" ${ch.enabled?'checked':''}></div></div>
       ${conditionalFields}
       <input type="hidden" class="nch-address" value="${esc(ch.address||'')}">
       <input type="hidden" class="nch-chatid" value="${esc(ch.chat_id||'')}">
@@ -1458,12 +1458,12 @@ function updateChannelFields(selectEl) {
   const idx = Array.from(item.parentElement.children).indexOf(item);
   let html = '';
   if (type === 'email') {
-    html = `<div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value=""></div>`;
+    html = `<div class="setting-row nch-cond"><label title="Emailova adresa prijemce notifikaci">Address</label><input class="setting-input nch-address" value=""></div>`;
   } else if (type === 'telegram') {
-    html = `<div class="setting-row nch-cond"><label>Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${idx}" value="" data-original=""><button onclick="toggleSecret('nch-bottoken-${idx}')">show</button></div></div>
-      <div class="setting-row nch-cond"><label>Chat ID</label><input class="setting-input nch-chatid" value=""></div>`;
+    html = `<div class="setting-row nch-cond"><label title="Token Telegram bota ziskany od @BotFather">Bot Token</label><div class="secret-field"><input type="password" id="nch-bottoken-${idx}" value="" data-original=""><button onclick="toggleSecret('nch-bottoken-${idx}')">show</button></div></div>
+      <div class="setting-row nch-cond"><label title="ID Telegram chatu nebo skupiny kam se posilaji zpravy">Chat ID</label><input class="setting-input nch-chatid" value=""></div>`;
   } else if (type === 'whatsapp' || type === 'sms') {
-    html = `<div class="setting-row nch-cond"><label>Phone</label><input class="setting-input nch-phone" value=""></div>`;
+    html = `<div class="setting-row nch-cond"><label title="Telefonni cislo prijemce v mezinarodnim formatu (napr. +420123456789)">Phone</label><input class="setting-input nch-phone" value=""></div>`;
   }
   if (html) {
     const enabledRow = item.querySelectorAll('.setting-row')[1]; // after type and enabled
@@ -1498,7 +1498,7 @@ function renderRepoPolicies(arr) {
       </div>`;
     });
     div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
-      <div class="setting-row"><label>Repo</label><input class="setting-input af-repo" value="${esc(rp.repo)}"></div>
+      <div class="setting-row"><label title="Nazev repozitare ve formatu organizace/repo (napr. myorg/backend-api)">Repo</label><input class="setting-input af-repo" value="${esc(rp.repo)}"></div>
       <div style="margin-top:8px"><strong style="font-size:12px;color:var(--text2)">Branch Rules:</strong></div>
       <div class="af-rules-container">${rulesHtml}</div>
       <button class="add-item-btn" onclick="addBranchRule(this)" style="margin-top:6px;font-size:12px;padding:6px">+ Add Branch Rule</button>`;
@@ -1566,13 +1566,13 @@ function addNotifyChannel() {
   const div = document.createElement('div');
   div.className = 'array-item';
   div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
-    <div class="setting-row"><label>Type</label>
+    <div class="setting-row"><label title="Typ notifikacniho kanalu (email, telegram, whatsapp, sms, cli)">Type</label>
       <select class="setting-select nch-type" onchange="updateChannelFields(this)">
         <option value="email" selected>email</option><option value="telegram">telegram</option><option value="whatsapp">whatsapp</option><option value="sms">sms</option><option value="cli">cli</option>
       </select>
     </div>
-    <div class="setting-row"><label>Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" checked></div></div>
-    <div class="setting-row nch-cond"><label>Address</label><input class="setting-input nch-address" value="" placeholder="user@example.com"></div>
+    <div class="setting-row"><label title="Zapnout nebo vypnout tento notifikacni kanal">Enabled</label><div class="toggle"><input type="checkbox" class="nch-enabled" checked></div></div>
+    <div class="setting-row nch-cond"><label title="Emailova adresa prijemce notifikaci">Address</label><input class="setting-input nch-address" value="" placeholder="user@example.com"></div>
     <input type="hidden" class="nch-chatid" value="">
     <input type="hidden" class="nch-phone" value="">`;
   c.appendChild(div);
@@ -1583,7 +1583,7 @@ function addRepoPolicy() {
   const div = document.createElement('div');
   div.className = 'array-item';
   div.innerHTML = `<button class="remove-item" onclick="this.parentElement.remove()">&times;</button>
-    <div class="setting-row"><label>Repo</label><input class="setting-input af-repo" value="" placeholder="org/repo"></div>
+    <div class="setting-row"><label title="Nazev repozitare ve formatu organizace/repo (napr. myorg/backend-api)">Repo</label><input class="setting-input af-repo" value="" placeholder="org/repo"></div>
     <div style="margin-top:8px"><strong style="font-size:12px;color:var(--text2)">Branch Rules:</strong></div>
     <div class="af-rules-container"></div>
     <button class="add-item-btn" onclick="addBranchRule(this)" style="margin-top:6px;font-size:12px;padding:6px">+ Add Branch Rule</button>`;
